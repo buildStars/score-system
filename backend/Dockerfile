@@ -1,5 +1,7 @@
 # ============================================
-# 计分系统后端 Dockerfile (简化版)
+# 计分系统后端 Dockerfile
+# ============================================
+# 注意：NestJS 构建后 main.js 在 dist/src/ 目录
 # ============================================
 
 FROM node:18-alpine
@@ -13,7 +15,7 @@ WORKDIR /app
 # 复制 package.json
 COPY package*.json ./
 
-# 安装所有依赖
+# 安装所有依赖（包括开发依赖）
 RUN npm install --legacy-peer-deps
 
 # 复制 prisma 配置
@@ -24,15 +26,6 @@ RUN npx prisma generate
 
 # 复制源代码
 COPY . .
-
-# 构建应用
-RUN npm run build
-
-# 验证 dist 目录（显示详细信息）
-RUN echo "=== Checking dist directory ===" && \
-    ls -la && \
-    ls -la dist/ || echo "dist not found" && \
-    find . -name "main.js" -type f || echo "main.js not found"
 
 # 创建日志目录
 RUN mkdir -p logs
@@ -47,5 +40,11 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # 设置环境变量
 ENV NODE_ENV=production
 
-# 启动应用
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+# 构建应用
+RUN npm run build
+
+# 验证构建结果
+RUN ls -la dist/ && ls -la dist/src/
+
+# 启动应用（注意：main.js 在 dist/src/ 目录下）
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
