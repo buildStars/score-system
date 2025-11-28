@@ -2,7 +2,7 @@
 # 计分系统后端 Dockerfile
 # ============================================
 
-FROM node:18-alpine
+FROM node:20-alpine
 
 # 安装必要工具和依赖
 RUN apk add --no-cache wget openssl openssl-dev libc6-compat python3 make g++
