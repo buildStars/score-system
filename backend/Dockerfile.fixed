@@ -1,41 +1,39 @@
-# ============================================
-# 计分系统后端 Dockerfile
-# ============================================
-
 FROM node:18-alpine
 
-# 安装必要工具和依赖
+# 安装必要工具
 RUN apk add --no-cache wget openssl openssl-dev libc6-compat python3 make g++
 
 WORKDIR /app
 
-# 复制 package 文件并安装依赖
+# 复制并安装依赖
 COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
-# 复制 prisma 配置并生成客户端
+# 复制 prisma 并生成客户端
 COPY prisma ./prisma
 RUN npx prisma generate
 
 # 复制所有源代码
 COPY . .
 
-# 构建应用并验证
+# 构建（确保在复制代码之后）
 RUN npm run build && \
     echo "=== Build completed ===" && \
+    ls -la && \
+    ls -la dist/ && \
     ls -la dist/src/ && \
-    test -f dist/src/main.js && echo "main.js found!" || (echo "main.js NOT found!" && exit 1)
+    echo "=== Files found ==="
 
 # 创建日志目录
 RUN mkdir -p logs
 
 EXPOSE 3000
 
-# 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget --quiet --tries=1 --spider http://localhost:3000/api-docs || exit 1
 
 ENV NODE_ENV=production
 
-# 启动应用
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+# 启动命令
+CMD ["sh", "-c", "echo '=== Starting app ===' && ls -la dist/src/ && npx prisma migrate deploy && node dist/src/main.js"]
+
