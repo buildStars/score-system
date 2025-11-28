@@ -1,6 +1,9 @@
 /**
  * ⚠️ 重要：此代码必须在所有导入之前执行
- * 修复 @nestjs/schedule 在 Alpine Linux/Docker 环境中的 crypto 问题
+ * 修复 @nestjs/schedule 在各种部署环境中的 crypto 问题
+ * 
+ * 适用环境：Docker, Railway, Render, Heroku 等
+ * Node.js 版本：16/18/20+ (已在 package.json 中要求 >=20.0.0)
  */
 import * as crypto from 'crypto';
 
@@ -9,15 +12,20 @@ import * as crypto from 'crypto';
 if (typeof globalThis !== 'undefined' && !globalThis.crypto) {
   (globalThis as any).crypto = {
     ...crypto,
-    randomUUID: crypto.randomUUID.bind(crypto),
+    // 优先使用原生 randomUUID，如果不存在则使用 polyfill
+    randomUUID: crypto.randomUUID?.bind(crypto) || (() => {
+      return crypto.randomBytes(16).toString('hex');
+    }),
   };
 }
 
-// 如果是旧版本 Node.js，提供 polyfill
+// 兼容旧版本 Node.js 环境（< 18）
 if (typeof global !== 'undefined' && !(global as any).crypto) {
   (global as any).crypto = {
     ...crypto,
-    randomUUID: crypto.randomUUID.bind(crypto),
+    randomUUID: crypto.randomUUID?.bind(crypto) || (() => {
+      return crypto.randomBytes(16).toString('hex');
+    }),
   };
 }
 
