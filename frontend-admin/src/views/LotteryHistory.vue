@@ -56,6 +56,48 @@
         <el-table-column label="开奖时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.drawTime) }}</template>
         </el-table-column>
+        <el-table-column label="结算状态" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.isSettled === 1 ? 'success' : 'warning'" size="small">
+              {{ row.isSettled === 1 ? '已结算' : '未结算' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="250" fixed="right">
+          <template #header>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span>操作</span>
+              <el-button type="primary" size="small" @click="handleCreate">
+                手动录入
+              </el-button>
+            </div>
+          </template>
+          <template #default="{ row }">
+            <el-button 
+              type="primary" 
+              size="small" 
+              @click="handleEdit(row)"
+            >
+              编辑
+            </el-button>
+            <el-button 
+              type="danger" 
+              size="small" 
+              @click="handleDelete(row)" 
+              :disabled="row.isSettled === 1"
+            >
+              删除
+            </el-button>
+            <el-button 
+              v-if="row.isSettled === 0"
+              type="success" 
+              size="small" 
+              @click="handleSettle(row)"
+            >
+              结算
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
 
       <!-- 分页 -->
@@ -70,20 +112,80 @@
         style="margin-top: 20px; justify-content: flex-end"
       />
     </el-card>
+
+    <!-- 新增/编辑对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogMode === 'create' ? '手动录入开奖数据' : '编辑开奖数据'"
+      width="500px"
+    >
+      <el-form :model="form" :rules="formRules" ref="formRef" label-width="100px">
+        <el-form-item label="期号" prop="issue">
+          <el-input
+            v-model="form.issue"
+            placeholder="请输入期号（如：20240101001）"
+            :disabled="dialogMode === 'edit'"
+          />
+        </el-form-item>
+        <el-form-item label="第一个号码" prop="number1">
+          <el-input-number
+            v-model="form.number1"
+            :min="0"
+            :max="9"
+            :step="1"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="第二个号码" prop="number2">
+          <el-input-number
+            v-model="form.number2"
+            :min="0"
+            :max="9"
+            :step="1"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="第三个号码" prop="number3">
+          <el-input-number
+            v-model="form.number3"
+            :min="0"
+            :max="9"
+            :step="1"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="总和">
+          <el-input
+            :value="form.number1 + form.number2 + form.number3"
+            disabled
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox, FormInstance } from 'element-plus'
 import { Search, Refresh, CircleCheck } from '@element-plus/icons-vue'
-import { getLotteryHistory } from '@/api/lottery'
+import { getLotteryHistory, createLottery, updateLottery, deleteLottery, settleLottery } from '@/api/lottery'
 import { formatDateTime } from '@/utils/format'
 import type { LotteryResult } from '@/types'
-import LotteryCountdown from '@/components/LotteryCountdown.vue'
 
 const loading = ref(false)
+const submitLoading = ref(false)
 const lotteryList = ref<LotteryResult[]>([])
+const dialogVisible = ref(false)
+const dialogMode = ref<'create' | 'edit'>('create')
+const formRef = ref<FormInstance>()
 
 // 搜索表单
 const searchForm = reactive({
@@ -96,6 +198,30 @@ const pagination = reactive({
   limit: 20,
   total: 0,
 })
+
+// 表单
+const form = reactive({
+  issue: '',
+  number1: 0,
+  number2: 0,
+  number3: 0,
+})
+
+// 表单验证规则
+const formRules = {
+  issue: [
+    { required: true, message: '请输入期号', trigger: 'blur' },
+  ],
+  number1: [
+    { required: true, message: '请输入第一个号码', trigger: 'blur' },
+  ],
+  number2: [
+    { required: true, message: '请输入第二个号码', trigger: 'blur' },
+  ],
+  number3: [
+    { required: true, message: '请输入第三个号码', trigger: 'blur' },
+  ],
+}
 
 // 获取开奖历史
 const fetchLotteryHistory = async () => {
@@ -134,28 +260,118 @@ const handleRefresh = () => {
   fetchLotteryHistory()
 }
 
-// 处理开奖完成（自动刷新）
-const handleDraw = (data: { period: string; nextPeriod: string }) => {
-  console.log('🎰 收到开奖通知:', data)
-  
-  if (data.period && data.nextPeriod && data.period !== data.nextPeriod) {
-    ElMessage.success(`第 ${data.period} 期已开奖，正在刷新数据...`)
-  } else {
-    ElMessage.info('正在刷新开奖数据...')
+// 打开新增对话框
+const handleCreate = () => {
+  dialogMode.value = 'create'
+  form.issue = ''
+  form.number1 = 0
+  form.number2 = 0
+  form.number3 = 0
+  dialogVisible.value = true
+}
+
+// 打开编辑对话框
+const handleEdit = (row: LotteryResult) => {
+  dialogMode.value = 'edit'
+  form.issue = row.issue
+  form.number1 = row.number1
+  form.number2 = row.number2
+  form.number3 = row.number3
+  dialogVisible.value = true
+}
+
+// 提交表单
+const handleSubmit = async () => {
+  if (!formRef.value) return
+
+  try {
+    await formRef.value.validate()
+    submitLoading.value = true
+
+    if (dialogMode.value === 'create') {
+      await createLottery({
+        issue: form.issue,
+        number1: form.number1,
+        number2: form.number2,
+        number3: form.number3,
+      })
+      ElMessage.success('创建成功')
+    } else {
+      const res = await updateLottery(form.issue, {
+        number1: form.number1,
+        number2: form.number2,
+        number3: form.number3,
+      })
+      
+      if (res.data.needResettle) {
+        ElMessage.warning({
+          message: '修改成功！该期号已撤销旧结算记录，请手动重新结算',
+          duration: 5000,
+        })
+      } else {
+        ElMessage.success('修改成功')
+      }
+    }
+
+    dialogVisible.value = false
+    fetchLotteryHistory()
+  } catch (error: any) {
+    console.error('提交失败:', error)
+    ElMessage.error(error.response?.data?.message || '操作失败')
+  } finally {
+    submitLoading.value = false
   }
-  
-  // 立即刷新（组件已经延迟了3-8秒）
-  fetchLotteryHistory()
 }
 
-// 处理封盘
-const handleClose = (data: { period: string; nextPeriod: string }) => {
-  console.log('⚠️ 封盘通知:', data)
+// 删除
+const handleDelete = async (row: LotteryResult) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除期号 ${row.issue} 的开奖数据吗？此操作不可恢复！`,
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    await deleteLottery(row.issue)
+    ElMessage.success('删除成功')
+    fetchLotteryHistory()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('删除失败:', error)
+      ElMessage.error(error.response?.data?.message || '删除失败')
+    }
+  }
 }
 
-// 处理开盘
-const handleOpen = (data: { period: string; nextPeriod: string }) => {
-  console.log('✅ 开盘通知:', data)
+// 手动结算
+const handleSettle = async (row: LotteryResult) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要结算期号 ${row.issue} 吗？`,
+      '提示',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'info',
+      }
+    )
+
+    const res = await settleLottery(row.issue)
+    ElMessage.success({
+      message: `结算成功！已结算 ${res.data.settledBets} 笔下注`,
+      duration: 3000,
+    })
+    fetchLotteryHistory()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('结算失败:', error)
+      ElMessage.error(error.response?.data?.message || '结算失败')
+    }
+  }
 }
 
 onMounted(() => {

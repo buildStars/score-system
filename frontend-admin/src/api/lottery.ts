@@ -60,3 +60,40 @@ export function getLotteryStatus() {
 export function canPlaceBet() {
   return request.get<CanBetResponse>('/lottery/can-bet')
 }
+
+/**
+ * 手动创建开奖数据
+ */
+export function createLottery(data: {
+  issue: string
+  number1: number
+  number2: number
+  number3: number
+}) {
+  return request.post('/lottery/admin/create', data)
+}
+
+/**
+ * 修改开奖数据
+ */
+export function updateLottery(issue: string, data: {
+  number1: number
+  number2: number
+  number3: number
+}) {
+  return request.put(`/lottery/admin/update/${issue}`, data)
+}
+
+/**
+ * 删除开奖数据
+ */
+export function deleteLottery(issue: string) {
+  return request.delete(`/lottery/admin/delete/${issue}`)
+}
+
+/**
+ * 手动结算指定期号
+ */
+export function settleLottery(issue: string) {
+  return request.post('/lottery/settle', { issue })
+}

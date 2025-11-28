@@ -665,19 +665,25 @@ export class BetService {
 
   /**
    * 获取下注汇总（所有人下注总和）
+   * 返回格式：
+   * - multiple: 所有倍数类型的总金额（如：1500）
+   * - 大单: 组合类型的总金额（如：100）
+   * - 小双: 组合类型的总金额（如：200）
+   * 
+   * 统计范围：所有期号、所有用户、所有未取消的下注
    */
   async getBetSummary(issue?: string, userId?: number) {
     const where: any = {
       status: { not: 'cancelled' }, // 排除已取消的下注
     };
 
-    if (issue) {
-      where.issue = issue;
-    }
-
-    if (userId) {
-      where.userId = userId;
-    }
+    // ⚠️ 统计所有期号所有用户，不过滤期号和用户
+    // if (issue) {
+    //   where.issue = issue;
+    // }
+    // if (userId) {
+    //   where.userId = userId;
+    // }
 
     // 查询所有符合条件的下注记录
     const bets = await this.prisma.bet.findMany({
@@ -689,17 +695,27 @@ export class BetService {
       },
     });
 
-    // 按 betContent 汇总金额
+    // 按类型汇总
     const summary: Record<string, number> = {};
+    let totalMultiple = 0; // 累加所有倍数类型的金额
 
     for (const bet of bets) {
-      const key = bet.betContent; // 直接使用 betContent 作为 key（如：2、3、5、10、大、小、单、双、大单、大双、小单、小双）
-      
-      if (!summary[key]) {
-        summary[key] = 0;
+      if (bet.betType === 'multiple') {
+        // 倍数类型：累加金额
+        totalMultiple += Number(bet.amount);
+      } else {
+        // 组合类型：按 betContent 分组累加
+        const key = bet.betContent; // 如：大、小、单、双、大单、大双、小单、小双
+        if (!summary[key]) {
+          summary[key] = 0;
+        }
+        summary[key] += Number(bet.amount);
       }
-      
-      summary[key] += Number(bet.amount);
+    }
+
+    // 如果有倍数类型的下注，添加到结果中
+    if (totalMultiple > 0) {
+      summary['multiple'] = totalMultiple;
     }
 
     return summary;

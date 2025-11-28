@@ -1,7 +1,10 @@
-version: '3.8'
-
+# ============================================
 # 开发环境配置 - 仅启动基础服务 (MySQL + Redis)
-# 使用方式: docker-compose -f docker-compose.dev.yml up -d
+# ============================================
+# 使用不同端口避免与本地服务冲突：
+# - MySQL: 3307 (而非默认的 3306)
+# - Redis: 6380 (而非默认的 6379)
+# ============================================
 
 services:
   # MySQL 数据库
@@ -16,7 +19,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-scorepass123}
       TZ: Asia/Shanghai
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${MYSQL_PORT:-3307}:3306"
     volumes:
       - mysql_data_dev:/var/lib/mysql
     command: 
@@ -37,10 +40,10 @@ services:
     container_name: score-redis-dev
     restart: always
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-6380}:6379"
     volumes:
       - redis_data_dev:/data
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123456}
+    command: redis-server --appendonly yes
     networks:
       - score-network-dev
     healthcheck:

@@ -841,8 +841,18 @@ const loadCurrentData = async () => {
       开奖时间: statusData.currentDrawTime,
     })
     
+    // 检测期号是否变化
+    const oldIssue = lotteryStore.currentIssue
+    const newIssue = statusData.currentPeriod
+    
     // 更新期号信息
-    lotteryStore.currentIssue = statusData.currentPeriod
+    lotteryStore.currentIssue = newIssue
+    
+    // 如果期号变化了，清空当前期下注记录
+    if (oldIssue && oldIssue !== newIssue) {
+      console.log('🔄 期号已更新:', oldIssue, '->', newIssue, '清空下注记录')
+      currentIssueBets.value = null
+    }
     
     // 计算初始倒计时
     countdown.value = calculateCountdown()
@@ -850,10 +860,11 @@ const loadCurrentData = async () => {
     // 更新游戏状态（根据封盘状态）
     lotteryStore.gameEnabled = statusData.canBet
     
-    // 同时获取用户信息和上期开奖结果
+    // 同时获取用户信息、上期开奖结果和当前期下注
     await Promise.all([
       userStore.fetchUserInfo(),
       lotteryStore.fetchCurrentIssue(), // 获取上期开奖结果和系统公告
+      loadCurrentIssueBets(), // 加载当前期下注记录
     ])
     
     // 启动倒计时
@@ -896,8 +907,8 @@ const startCountdown = () => {
 }
 
 onMounted(() => {
+  // loadCurrentData() 会自动加载 loadCurrentIssueBets()
   loadCurrentData()
-  loadCurrentIssueBets()
 })
 
 onUnmounted(() => {

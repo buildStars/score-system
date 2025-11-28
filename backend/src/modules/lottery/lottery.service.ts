@@ -2,6 +2,8 @@ import { Injectable, BadRequestException, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QueryLotteryDto } from './dto/query-lottery.dto';
+import { CreateLotteryDto } from './dto/create-lottery.dto';
+import { UpdateLotteryDto } from './dto/update-lottery.dto';
 import {
   isReturn,
   getSizeResult,
@@ -14,125 +16,83 @@ import {
 } from './utils/lottery-rules.util';
 import axios from 'axios';
 import * as https from 'https';
+import { LotteryDataSourceManager } from './services/lottery-data-source.manager';
 
 @Injectable()
 export class LotteryService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
+    private dataSourceManager: LotteryDataSourceManager,
   ) {}
 
   /**
-   * 从USA28 API同步开奖数据
+   * 从多数据源同步开奖数据（带自动故障转移）
    */
   async syncLotteryData() {
     try {
-      console.log('开始同步USA28开奖数据...');
+      console.log('🎯 开始同步开奖数据（多数据源模式）...');
 
-      // 1. 使用USA28数据源（唯一可用的第三方源）
-      const usa28ApiUrl = 'https://api.365kaik.com/api/v1/trend/getHistoryList';
-      const params = {
-        lotCode: '10029',
-        pageSize: '2', // 只获取最新2条，减少延迟
-        pageNum: '0',
-        t: Date.now().toString(),
-      };
+      // 1. 使用数据源管理器获取最新数据（自动故障转移）
+      const result = await this.dataSourceManager.fetchLatestData();
 
-      // 2. 从USA28 API获取数据
-      console.log('请求USA28 API:', usa28ApiUrl);
-      console.log('请求参数:', params);
-      
-      // 创建 https agent，忽略 SSL 证书验证（仅开发环境）
-      const httpsAgent = new https.Agent({
-        rejectUnauthorized: false, // 忽略证书验证
-      });
-      
-      const response = await axios.get(usa28ApiUrl, { 
-        params,
-        timeout: 10000, // 10秒超时，快速失败
-        httpsAgent, // 使用自定义 https agent
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        },
-        validateStatus: (status) => status < 500, // 允许4xx状态码
-      });
-
-      const apiData = response.data;
-      console.log('USA28 API响应状态:', apiData.code);
-
-      // 3. 验证响应格式
-      if (!apiData || apiData.code !== 0 || !apiData.data || !apiData.data.list) {
-        throw new BadRequestException('USA28 API数据格式错误');
+      if (!result.success || !result.data) {
+        throw new BadRequestException('所有数据源均失败，无法获取开奖数据');
       }
 
-      const list = apiData.data.list;
-      console.log(`获取到 ${list.length} 条开奖记录`);
+      console.log(`✅ 成功从 ${result.source} 获取 ${result.data.length} 条开奖记录 (${result.responseTime}ms)`);
 
       let syncedCount = 0;
       let latestIssue = '';
       let latestDrawTime: Date | null = null;
 
-      // 4. 处理每条开奖记录
-      for (const item of list) {
+      // 2. 处理每条开奖记录
+      for (const item of result.data) {
         try {
-          const { drawIssue, drawTime, drawCode } = item;
-
           // 检查是否已存在
           const existing = await this.prisma.lotteryResult.findUnique({
-            where: { issue: drawIssue },
+            where: { issue: item.issue },
           });
 
           if (existing) {
-            console.log(`期号 ${drawIssue} 已存在，跳过`);
+            console.log(`期号 ${item.issue} 已存在，跳过`);
             continue;
           }
 
-          // 5. 解析开奖号码（USA28格式：1,2,1）
-          const numbers = drawCode.split(',').map((n: string) => parseInt(n.trim()));
-          if (numbers.length !== 3) {
-            console.error(`期号 ${drawIssue} 号码格式错误: ${drawCode}`);
-            continue;
-          }
+          // 3. 判定是否回本
+          const returnResult = isReturn(item.number1, item.number2, item.number3, item.sumValue);
 
-          const [number1, number2, number3] = numbers;
-          const resultSum = number1 + number2 + number3;
+          // 4. 计算大小单双
+          const sizeResult = getSizeResult(item.sumValue);
+          const oddEvenResult = getOddEvenResult(item.sumValue);
+          const comboResult = getComboResult(item.sumValue);
 
-          // 6. 判定是否回本
-          const returnResult = isReturn(number1, number2, number3, resultSum);
-
-          // 7. 计算大小单双
-          const sizeResult = getSizeResult(resultSum);
-          const oddEvenResult = getOddEvenResult(resultSum);
-          const comboResult = getComboResult(resultSum);
-
-          // 8. 保存开奖结果
+          // 5. 保存开奖结果
           const lotteryResult = await this.prisma.lotteryResult.create({
             data: {
-              issue: drawIssue,
-              number1,
-              number2,
-              number3,
-              resultSum,
+              issue: item.issue,
+              number1: item.number1,
+              number2: item.number2,
+              number3: item.number3,
+              resultSum: item.sumValue,
               isReturn: returnResult.isReturn ? 1 : 0,
               returnReason: returnResult.reason,
               sizeResult,
               oddEvenResult,
               comboResult,
-              drawTime: new Date(drawTime),
+              drawTime: item.drawTime,
               isSettled: 0,
             },
           });
 
-          console.log(`✓ 成功保存期号 ${drawIssue}: ${number1}+${number2}+${number3}=${resultSum}`);
+          console.log(`✓ 成功保存期号 ${item.issue}: ${item.number1}+${item.number2}+${item.number3}=${item.sumValue} (来源: ${item.source})`);
           
           syncedCount++;
-          latestIssue = drawIssue;
+          latestIssue = item.issue;
           latestDrawTime = lotteryResult.drawTime;
 
         } catch (itemError) {
-          console.error(`处理期号 ${item.drawIssue} 失败:`, itemError.message);
+          console.error(`处理期号 ${item.issue} 失败:`, itemError.message);
           // 继续处理下一条
         }
       }
@@ -151,7 +111,7 @@ export class LotteryService {
       }
 
       const message = syncedCount > 0 
-        ? `成功同步 ${syncedCount} 条开奖数据`
+        ? `成功同步 ${syncedCount} 条开奖数据 (来源: ${result.source})`
         : '没有新的开奖数据';
 
       console.log(message);
@@ -161,44 +121,30 @@ export class LotteryService {
         syncedCount,
         latestIssue,
         latestDrawTime,
-        totalRecords: list.length,
+        dataSource: result.source,
+        totalRecords: result.data.length,
       };
 
     } catch (error) {
       console.error('同步开奖数据失败：', error);
       
-      // 详细错误信息
-      let errorMessage = '同步开奖数据失败';
-      let errorDetails = '';
-      
-      if (error.response) {
-        // API 返回了错误响应
-        errorMessage = `USA28 API错误: ${error.response.status}`;
-        errorDetails = JSON.stringify(error.response.data);
-        console.error('API响应数据:', error.response.data);
-      } else if (error.request) {
-        // 请求已发送但没有响应
-        errorMessage = 'USA28 API无响应，请检查网络连接';
-        errorDetails = '可能原因: 1.网络连接问题 2.API服务暂时不可用 3.防火墙阻止 4.DNS解析失败';
-        console.error('请求已发送但无响应');
-      } else if (error.code === 'ECONNABORTED') {
-        // 超时
-        errorMessage = 'USA28 API请求超时';
-        errorDetails = '请求超过30秒未响应，请稍后重试';
-      } else {
-        // 其他错误
-        errorMessage = error.message || '未知错误';
-        errorDetails = error.stack || '';
-      }
-
-      console.error('错误详情:', errorDetails);
-      
       throw new HttpException(
-        `${errorMessage}${errorDetails ? ' - ' + errorDetails : ''}`,
-        error.status || 500,
+        {
+          message: '同步开奖数据失败',
+          error: error.message,
+        },
+        500,
       );
     }
   }
+
+  /**
+   * 获取数据源健康状态
+   */
+  async getDataSourceHealth() {
+    return await this.dataSourceManager.healthCheck();
+  }
+
 
   /**
    * 获取当前期号信息
@@ -574,6 +520,168 @@ export class LotteryService {
       console.error('错误详情:', errorInfo);
       return errorInfo;
     }
+  }
+
+  /**
+   * 手动创建开奖数据
+   */
+  async createLottery(dto: CreateLotteryDto) {
+    // 1. 检查期号是否已存在
+    const existing = await this.prisma.lotteryResult.findUnique({
+      where: { issue: dto.issue },
+    });
+
+    if (existing) {
+      throw new BadRequestException(`期号 ${dto.issue} 已存在`);
+    }
+
+    // 2. 计算开奖结果
+    const { number1, number2, number3 } = dto;
+    const resultSum = number1 + number2 + number3;
+    const sizeResult = getSizeResult(resultSum);
+    const oddEvenResult = getOddEvenResult(resultSum);
+    const comboResult = getComboResult(resultSum);
+    const returnResult = isReturn(number1, number2, number3, resultSum);
+    const isReturnValue = returnResult.isReturn;
+    const returnReason = returnResult.reason;
+
+    // 3. 创建开奖记录
+    const lottery = await this.prisma.lotteryResult.create({
+      data: {
+        issue: dto.issue,
+        number1,
+        number2,
+        number3,
+        resultSum,
+        sizeResult,
+        oddEvenResult,
+        comboResult,
+        isReturn: isReturnValue ? 1 : 0,
+        returnReason,
+        drawTime: new Date(), // 使用当前时间
+        isSettled: 0, // 未结算
+      },
+    });
+
+    console.log(`✓ 手动创建开奖数据: 期号=${dto.issue}, 号码=${number1} ${number2} ${number3}, 总和=${resultSum}`);
+
+    return {
+      message: '创建成功',
+      data: lottery,
+    };
+  }
+
+  /**
+   * 修改开奖数据
+   * 注意：修改已结算的数据后，需要手动重新结算该期号
+   */
+  async updateLottery(issue: string, dto: UpdateLotteryDto) {
+    // 1. 检查期号是否存在
+    const existing = await this.prisma.lotteryResult.findUnique({
+      where: { issue },
+    });
+
+    if (!existing) {
+      throw new BadRequestException(`期号 ${issue} 不存在`);
+    }
+
+    // 2. 计算新的开奖结果
+    const { number1, number2, number3 } = dto;
+    const resultSum = number1 + number2 + number3;
+    const sizeResult = getSizeResult(resultSum);
+    const oddEvenResult = getOddEvenResult(resultSum);
+    const comboResult = getComboResult(resultSum);
+    const returnResult = isReturn(number1, number2, number3, resultSum);
+    const isReturnValue = returnResult.isReturn;
+    const returnReason = returnResult.reason;
+
+    // 3. 更新开奖记录，并重置结算状态
+    const lottery = await this.prisma.lotteryResult.update({
+      where: { issue },
+      data: {
+        number1,
+        number2,
+        number3,
+        resultSum,
+        sizeResult,
+        oddEvenResult,
+        comboResult,
+        isReturn: isReturnValue ? 1 : 0,
+        returnReason,
+        // 如果已结算，重置结算状态（需要重新结算）
+        isSettled: 0,
+        settledAt: null,
+      },
+    });
+
+    // 4. 如果该期号已经结算过，撤销之前的结算结果
+    if (existing.isSettled === 1) {
+      console.log(`⚠️ 期号 ${issue} 已结算，需要撤销旧结算并重新结算`);
+      
+      // 撤销该期号的所有结算记录（将状态改回 pending）
+      await this.prisma.bet.updateMany({
+        where: {
+          issue,
+          status: { in: ['win', 'loss', 'cancelled'] },
+        },
+        data: {
+          status: 'pending',
+          resultAmount: null,
+          settledAt: null,
+        },
+      });
+
+      console.log(`✓ 已撤销期号 ${issue} 的结算记录，请手动重新结算`);
+    }
+
+    console.log(`✓ 修改开奖数据: 期号=${issue}, 号码=${number1} ${number2} ${number3}, 总和=${resultSum}`);
+
+    return {
+      message: existing.isSettled === 1 
+        ? '修改成功，已撤销旧结算记录，请手动重新结算该期号' 
+        : '修改成功',
+      data: lottery,
+      needResettle: existing.isSettled === 1,
+    };
+  }
+
+  /**
+   * 删除开奖数据（仅未结算）
+   */
+  async deleteLottery(issue: string) {
+    // 1. 检查期号是否存在
+    const existing = await this.prisma.lotteryResult.findUnique({
+      where: { issue },
+    });
+
+    if (!existing) {
+      throw new BadRequestException(`期号 ${issue} 不存在`);
+    }
+
+    // 2. 检查是否已结算（已结算的不能删除，只能修改）
+    if (existing.isSettled === 1) {
+      throw new BadRequestException(`期号 ${issue} 已结算，无法删除。如需修正数据，请使用编辑功能`);
+    }
+
+    // 3. 检查是否有下注记录
+    const betCount = await this.prisma.bet.count({
+      where: { issue },
+    });
+
+    if (betCount > 0) {
+      throw new BadRequestException(`期号 ${issue} 存在 ${betCount} 条下注记录，无法删除`);
+    }
+
+    // 4. 删除开奖记录
+    await this.prisma.lotteryResult.delete({
+      where: { issue },
+    });
+
+    console.log(`✓ 删除开奖数据: 期号=${issue}`);
+
+    return {
+      message: '删除成功',
+    };
   }
 }
 

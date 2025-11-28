@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Query, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { LotteryService } from './lottery.service';
 import { LotteryCountdownService } from './lottery-countdown.service';
@@ -8,6 +8,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { QueryLotteryDto } from './dto/query-lottery.dto';
 import { SettleLotteryDto } from './dto/settle-lottery.dto';
+import { CreateLotteryDto } from './dto/create-lottery.dto';
+import { UpdateLotteryDto } from './dto/update-lottery.dto';
 
 @ApiTags('开奖')
 @ApiBearerAuth()
@@ -52,6 +54,15 @@ export class LotteryController {
     return this.syncService.getSyncStatus();
   }
 
+  @Get('data-source-health')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @ApiOperation({ summary: '获取数据源健康状态（管理员）' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  async getDataSourceHealth() {
+    return await this.lotteryService.getDataSourceHealth();
+  }
+
   @Post('settle')
   @UseGuards(RolesGuard)
   @Roles('admin', 'superadmin')
@@ -92,6 +103,36 @@ export class LotteryController {
   async refreshStatus() {
     await this.countdownService.refresh();
     return { message: '刷新成功' };
+  }
+
+  @Post('admin/create')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @ApiOperation({ summary: '手动创建开奖数据（管理员）' })
+  @ApiResponse({ status: 200, description: '创建成功' })
+  async createLottery(@Body() dto: CreateLotteryDto) {
+    return this.lotteryService.createLottery(dto);
+  }
+
+  @Put('admin/update/:issue')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @ApiOperation({ summary: '修改开奖数据（管理员）' })
+  @ApiResponse({ status: 200, description: '修改成功' })
+  async updateLottery(
+    @Param('issue') issue: string,
+    @Body() dto: UpdateLotteryDto,
+  ) {
+    return this.lotteryService.updateLottery(issue, dto);
+  }
+
+  @Delete('admin/delete/:issue')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @ApiOperation({ summary: '删除开奖数据（管理员）' })
+  @ApiResponse({ status: 200, description: '删除成功' })
+  async deleteLottery(@Param('issue') issue: string) {
+    return this.lotteryService.deleteLottery(issue);
   }
 }
 

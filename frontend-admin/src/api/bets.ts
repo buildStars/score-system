@@ -23,11 +23,11 @@ export const getBetList = (params: {
 }
 
 /**
- * 获取下注汇总（所有人下注总和）
+ * 获取下注汇总（所有期号所有用户的下注总和）
+ * @returns 返回格式：{ multiple: 1500, '大单': 100, '小双': 200, ... }
  */
-export const getBetSummary = (params: {
+export const getBetSummary = (params?: {
   issue?: string
-  userId?: number
 }) => {
   return request.get<any, ApiResponse<Record<string, number>>>('/admin/bets/summary', { params })
 }

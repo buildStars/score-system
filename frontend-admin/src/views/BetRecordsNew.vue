@@ -93,18 +93,13 @@
         <div class="summary-section">
           <div class="summary-header">
             <h3>所有人下注总和</h3>
-            <el-alert 
-              v-if="!searchForm.issue" 
-              type="info" 
-              :closable="false"
-              :style="{ marginBottom: '12px', fontSize: '12px' }"
-            >
-              请输入期号进行查询
-            </el-alert>
+            <el-tag type="success" size="small">
+              统计全部期号
+            </el-tag>
           </div>
 
           <!-- 除数控制 -->
-          <div class="summary-controls" v-if="searchForm.issue">
+          <div class="summary-controls">
             <el-switch 
               v-model="divideEnabled" 
               active-text="启用除数" 
@@ -126,13 +121,8 @@
 
           <div class="summary-content" v-loading="summaryLoading">
             <el-empty 
-              v-if="!searchForm.issue" 
-              description="请先输入期号查询" 
-              :image-size="80"
-            />
-            <el-empty 
-              v-else-if="!hasSummaryData" 
-              description="该期号暂无下注数据" 
+              v-if="!hasSummaryData" 
+              description="暂无下注数据" 
               :image-size="80"
             />
             <div v-else class="summary-items">
@@ -148,13 +138,10 @@
           </div>
 
           <div class="summary-footer" v-if="hasSummaryData">
-            <el-tag type="info" size="small">
-              期号：{{ searchForm.issue }}
-            </el-tag>
             <el-tag type="success" size="small" v-if="divideEnabled && divideNumber > 0">
-              显示：÷ {{ divideNumber }}
+              显示：÷ {{ divideNumber.toFixed(2) }}
             </el-tag>
-            <el-tag type="warning" size="small" v-else>
+            <el-tag type="info" size="small" v-else>
               显示：原始值
             </el-tag>
           </div>
@@ -165,10 +152,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { getBetList, getBetSummary } from '@/api/bets'
-import { formatMoney, formatDateTime, formatBetType } from '@/utils/format'
+import { formatMoney, formatDateTime } from '@/utils/format'
 import type { BetRecord } from '@/types'
 import LotteryCountdownSimple from '@/components/LotteryCountdownSimple.vue'
 import { ElMessage } from 'element-plus'
@@ -213,24 +200,13 @@ const hasSummaryData = computed(() => {
   return Object.keys(summaryData.value).length > 0
 })
 
-// 格式化下注内容显示
-const formatBetContentDisplay = (content: string, betType: string): string => {
-  // 如果是倍数，添加"倍"后缀
-  if (betType === 'multiple' || !isNaN(Number(content))) {
-    return `${content}倍`
-  }
-  // 组合玩法直接显示
-  return content
-}
-
 // 格式化下注内容标签
 const formatBetContentLabel = (key: string): string => {
+  if (key === 'multiple') {
+    return '倍数' // 所有倍数类型的汇总
+  }
+  
   const labelMap: Record<string, string> = {
-    // 倍数
-    '2': '2倍',
-    '3': '3倍',
-    '5': '5倍',
-    '10': '10倍',
     // 组合
     '大': '大',
     '小': '小',
@@ -273,19 +249,12 @@ const fetchBetList = async () => {
   }
 }
 
-// 获取下注汇总
+// 获取下注汇总（所有期号所有用户的总和）
 const fetchSummary = async () => {
-  if (!searchForm.issue) {
-    summaryData.value = {}
-    return
-  }
-
   try {
     summaryLoading.value = true
-    const res = await getBetSummary({
-      issue: searchForm.issue,
-      userId: searchForm.userId,
-    })
+    // ⚠️ 统计所有期号所有用户的下注总和
+    const res = await getBetSummary({})
     summaryData.value = res.data || {}
   } catch (error) {
     console.error('获取下注汇总失败:', error)
@@ -300,7 +269,7 @@ const fetchSummary = async () => {
 const handleSearch = () => {
   pagination.page = 1
   fetchBetList()
-  fetchSummary()
+  // fetchSummary() // 移除，汇总数据不随搜索变化
 }
 
 // 重置
@@ -308,21 +277,15 @@ const handleReset = () => {
   searchForm.userId = undefined
   searchForm.issue = ''
   pagination.page = 1
-  summaryData.value = {}
+  // summaryData.value = {} // 移除，汇总数据保持不变
   fetchBetList()
 }
 
-// 监听期号变化，自动获取汇总
-watch(() => searchForm.issue, (newVal) => {
-  if (newVal) {
-    fetchSummary()
-  } else {
-    summaryData.value = {}
-  }
-})
+// 移除监听期号变化，汇总数据始终显示所有期号
 
 onMounted(() => {
   fetchBetList()
+  fetchSummary() // 初始化加载汇总数据
 })
 </script>
 
