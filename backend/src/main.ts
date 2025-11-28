@@ -47,10 +47,13 @@ async function bootstrap() {
   // 全局前缀
   app.setGlobalPrefix('api');
 
-  // 跨域配置
+  // 跨域配置 - 生产环境允许所有来源
   app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',') || true,
+    origin: true, // 允许所有来源
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    exposedHeaders: ['Authorization'],
   });
 
   // 全局验证管道
