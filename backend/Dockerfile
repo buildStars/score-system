@@ -38,23 +38,24 @@ WORKDIR /app
 # 安装pnpm
 RUN npm install -g pnpm
 
-# 复制package.json
+# 复制package.json和prisma配置
 COPY package.json pnpm-lock.yaml* ./
+COPY prisma ./prisma
 
-# 只安装生产依赖
-RUN pnpm install --prod --no-frozen-lockfile || npm install --production
+# 安装所有依赖（生产环境也需要生成Prisma客户端）
+RUN pnpm install --no-frozen-lockfile || npm install
+
+# 生成Prisma客户端
+RUN npx prisma generate
 
 # 从构建阶段复制构建产物
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/prisma ./prisma
-
-# 复制启动脚本（如果存在）
-# COPY docker-entrypoint.sh /usr/local/bin/
-# RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # 创建日志目录
 RUN mkdir -p /app/logs
+
+# 设置工作目录权限
+RUN chown -R node:node /app
 
 # 暴露端口
 EXPOSE 3000
@@ -65,6 +66,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 # 设置环境变量
 ENV NODE_ENV=production
+
+# 切换到非root用户
+USER node
 
 # 启动应用
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
