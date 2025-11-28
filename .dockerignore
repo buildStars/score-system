@@ -1,0 +1,66 @@
+# 全局 Docker 忽略文件
+
+# Git
+.git
+.gitignore
+
+# 环境变量
+.env
+.env.*
+env.example
+
+# 文档
+*.md
+docs/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# 构建产物
+dist/
+build/
+out/
+
+# 日志
+logs/
+*.log
+
+# 数据库
+*.sql
+*.sqlite
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.suo
+*.user
+*.sublime*
+
+# 操作系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 备份文件
+backups/
+*.bak
+
+
+

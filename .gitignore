@@ -1,0 +1,20 @@
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# Docker 数据卷
+mysql_data/
+redis_data/
+backend_logs/
+
+# 日志文件
+*.log
+logs/
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+
+

@@ -1,0 +1,188 @@
+version: '3.8'
+
+# ============================================
+# 计分系统 - Docker Compose 配置
+# ============================================
+# 完全独立的Docker环境，不会和其他项目冲突
+# 
+# 使用的资源标识：
+# - 网络：score-network（独立）
+# - 容器名：score-system-*（独立前缀）
+# - 数据卷：score-*-data（独立前缀）
+# - 端口：3307, 6380, 3000, 5173, 5174（可配置）
+# ============================================
+
+services:
+  # MySQL 数据库服务
+  mysql:
+    image: mysql:8.0
+    container_name: score-system-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-score_root_2024}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-yunce_score_system}
+      MYSQL_USER: ${MYSQL_USER:-score_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-score_pass_2024}
+      TZ: Asia/Shanghai
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"  # 使用3307端口，避免和其他MySQL冲突
+    volumes:
+      - score-mysql-data:/var/lib/mysql
+      - ./backend/prisma:/docker-entrypoint-initdb.d/prisma:ro
+    networks:
+      - score-network
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-score_root_2024}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: score-system-redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6380}:6379"  # 使用6380端口，避免和其他Redis冲突
+    volumes:
+      - score-redis-data:/data
+    networks:
+      - score-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # 后端 API 服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: score-system-backend
+    restart: always
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-score_user}:${MYSQL_PASSWORD:-score_pass_2024}@mysql:3306/${MYSQL_DATABASE:-yunce_score_system}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET:-yunce-score-jwt-secret-2024-change-this}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      JWT_ADMIN_EXPIRES_IN: ${JWT_ADMIN_EXPIRES_IN:-12h}
+      PORT: 3000
+      NODE_ENV: ${NODE_ENV:-production}
+      TZ: Asia/Shanghai
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - backend-logs:/app/logs
+    networks:
+      - score-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api-docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # H5 前端服务
+  frontend-h5:
+    build:
+      context: ./frontend-h5
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api}
+    container_name: score-system-h5
+    restart: always
+    ports:
+      - "${H5_PORT:-5173}:80"
+    networks:
+      - score-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 管理后台前端服务
+  frontend-admin:
+    build:
+      context: ./frontend-admin
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api}
+    container_name: score-system-admin
+    restart: always
+    ports:
+      - "${ADMIN_PORT:-5174}:80"
+    networks:
+      - score-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# 数据卷（使用独立的命名前缀）
+volumes:
+  score-mysql-data:
+    name: score-mysql-data
+    driver: local
+  score-redis-data:
+    name: score-redis-data
+    driver: local
+  backend-logs:
+    name: score-backend-logs
+    driver: local
+
+# 网络（独立网络，不会和其他项目冲突）
+networks:
+  score-network:
+    name: score-network
+    driver: bridge
+
+# ============================================
+# 使用说明
+# ============================================
+# 
+# 1. 启动所有服务：
+#    docker-compose up -d
+# 
+# 2. 查看运行状态：
+#    docker-compose ps
+# 
+# 3. 查看日志：
+#    docker-compose logs -f
+# 
+# 4. 停止服务：
+#    docker-compose down
+# 
+# 5. 停止并删除数据：
+#    docker-compose down -v
+# 
+# 6. 重启某个服务：
+#    docker-compose restart backend
+# 
+# ============================================
+# 访问地址
+# ============================================
+# 
+# - API文档：http://localhost:3000/api-docs
+# - H5前端：http://localhost:5173
+# - 管理后台：http://localhost:5174
+# - MySQL：localhost:3307
+# - Redis：localhost:6380
+# 
+# ============================================
