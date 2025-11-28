@@ -25,3 +25,4 @@ export class CreateLotteryDto {
   number3: number;
 }
 
+

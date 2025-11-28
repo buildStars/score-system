@@ -140,3 +140,4 @@ mysql -u root -p score_system < prisma/migrations/remove_warning_time.sql
 
 
 
+

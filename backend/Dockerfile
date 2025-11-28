@@ -5,6 +5,9 @@
 # 阶段1: 构建阶段
 FROM node:18-alpine AS builder
 
+# 安装 OpenSSL 兼容库（Prisma 需要）
+RUN apk add --no-cache openssl openssl-dev
+
 # 设置工作目录
 WORKDIR /app
 
@@ -29,8 +32,8 @@ RUN pnpm build
 # 阶段2: 生产阶段
 FROM node:18-alpine
 
-# 安装必要的工具
-RUN apk add --no-cache wget
+# 安装必要的工具和 OpenSSL 兼容库
+RUN apk add --no-cache wget openssl openssl-dev libc6-compat
 
 # 设置工作目录
 WORKDIR /app

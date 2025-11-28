@@ -21,3 +21,4 @@ export class UpdateLotteryDto {
   number3: number;
 }
 
+
