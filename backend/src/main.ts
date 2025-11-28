@@ -4,6 +4,12 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import * as crypto from 'crypto';
+
+// 确保 crypto 在全局可用（修复 Alpine Linux 环境问题）
+if (!globalThis.crypto) {
+  (globalThis as any).crypto = crypto;
+}
 
 async function bootstrap() {
   // 修复 BigInt 序列化问题

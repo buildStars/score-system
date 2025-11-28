@@ -37,5 +37,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 ENV NODE_ENV=production
 
-# 启动应用
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+# 启动应用（先推送 schema 再运行迁移）
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npx prisma migrate deploy && node dist/src/main.js"]
