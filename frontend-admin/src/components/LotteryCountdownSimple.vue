@@ -245,6 +245,11 @@ onUnmounted(() => {
     clearInterval(timer)
   }
 })
+
+// 暴露 currentPeriod 给父组件使用
+defineExpose({
+  currentPeriod
+})
 </script>
 
 <style scoped lang="scss">

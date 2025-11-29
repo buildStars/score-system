@@ -1,7 +1,11 @@
 <template>
   <div class="bet-records-page">
     <!-- 倒计时组件 -->
-    <LotteryCountdownSimple :style="{ marginBottom: '20px' }" />
+    <LotteryCountdownSimple 
+      ref="countdownRef"
+      :style="{ marginBottom: '20px' }"
+      @draw="handleDraw"
+    />
     
     <!-- 主内容区 -->
     <el-card shadow="hover">
@@ -29,52 +33,54 @@
       <div class="content-wrapper">
         <!-- 下注列表 -->
         <div class="bet-list-section">
-          <el-table :data="betList" stripe v-loading="loading" border>
-            <el-table-column prop="issue" label="期号" width="120" fixed />
-            <el-table-column label="用户" width="150">
+          <div class="table-wrapper">
+            <el-table :data="betList" stripe v-loading="loading" border size="small">
+            <el-table-column prop="issue" label="期号" width="90" />
+            <el-table-column label="用户" min-width="100">
               <template #default="{ row }">
                 <div>
-                  <div>{{ row.user?.nickname || row.user?.username || '-' }}</div>
-                  <div style="font-size: 12px; color: #909399;">ID: {{ row.user?.id }}</div>
+                  <div style="font-size: 13px;">{{ row.user?.nickname || row.user?.username || '-' }}</div>
+                  <div style="font-size: 11px; color: #909399;">ID: {{ row.user?.id }}</div>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="下注内容" min-width="300">
+            <el-table-column label="下注内容" min-width="180">
               <template #default="{ row }">
                 <div class="bet-content">
-                  <span style="color: #409eff; font-weight: 600; font-size: 15px;">
+                  <span style="color: #409eff; font-weight: 600; font-size: 13px;">
                     {{ row.betContent }}
                   </span>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="结算结果" width="150" align="center">
+            <el-table-column label="结果" width="100" align="center">
               <template #default="{ row }">
-                <div v-if="row.status === 'pending'" style="color: #909399;">
+                <div v-if="row.status === 'pending'" style="color: #909399; font-size: 12px;">
                   未结算
                 </div>
-                <div v-else-if="row.status === 'cancelled'" style="color: #ff976a;">
+                <div v-else-if="row.status === 'cancelled'" style="color: #ff976a; font-size: 12px;">
                   已取消
                 </div>
-                <div v-else :class="row.resultAmount >= 0 ? 'profit-text' : 'loss-text'">
+                <div v-else :class="row.resultAmount >= 0 ? 'profit-text' : 'loss-text'" style="font-size: 13px;">
                   {{ row.resultAmount >= 0 ? '+' : '' }}¥{{ formatMoney(row.resultAmount) }}
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="剩余" width="120" align="right">
+            <el-table-column label="剩余" width="90" align="right">
               <template #default="{ row }">
-                <span v-if="row.pointsAfter !== null" style="font-weight: 600;">
+                <span v-if="row.pointsAfter !== null" style="font-weight: 600; font-size: 13px;">
                   ¥{{ formatMoney(row.pointsAfter) }}
                 </span>
                 <span v-else style="color: #909399;">-</span>
               </template>
             </el-table-column>
-            <el-table-column label="时间" width="180">
+            <el-table-column label="时间" min-width="130">
               <template #default="{ row }">
                 {{ formatDateTime(row.createdAt) }}
               </template>
             </el-table-column>
-          </el-table>
+            </el-table>
+          </div>
 
           <!-- 分页 -->
           <el-pagination
@@ -94,7 +100,7 @@
           <div class="summary-header">
             <h3>所有人下注总和</h3>
             <el-tag type="success" size="small">
-              统计全部期号
+              当前期号: {{ currentIssue || '加载中...' }}
             </el-tag>
           </div>
 
@@ -152,7 +158,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { getBetList, getBetSummary } from '@/api/bets'
 import { formatMoney, formatDateTime } from '@/utils/format'
@@ -164,6 +170,13 @@ const loading = ref(false)
 const summaryLoading = ref(false)
 const betList = ref<BetRecord[]>([])
 const summaryData = ref<Record<string, number>>({})
+const countdownRef = ref<InstanceType<typeof LotteryCountdownSimple>>()
+const currentIssue = ref<string>('')
+
+// 轮询相关
+const pollingTimer = ref<number | null>(null)
+const pollingTimeout = ref<number | null>(null)
+const isPolling = ref(false)
 
 // 除数设置
 const divideEnabled = ref(false)
@@ -249,12 +262,17 @@ const fetchBetList = async () => {
   }
 }
 
-// 获取下注汇总（所有期号所有用户的总和）
+// 获取下注汇总（当前期号所有用户的总和）
 const fetchSummary = async () => {
+  if (!currentIssue.value) {
+    console.log('当前期号未加载，跳过汇总查询')
+    return
+  }
+  
   try {
     summaryLoading.value = true
-    // ⚠️ 统计所有期号所有用户的下注总和
-    const res = await getBetSummary({})
+    // 统计当前期号所有用户的下注总和
+    const res = await getBetSummary({ issue: currentIssue.value })
     summaryData.value = res.data || {}
   } catch (error) {
     console.error('获取下注汇总失败:', error)
@@ -281,11 +299,106 @@ const handleReset = () => {
   fetchBetList()
 }
 
-// 移除监听期号变化，汇总数据始终显示所有期号
+// 停止轮询
+const stopPolling = () => {
+  if (pollingTimer.value) {
+    clearInterval(pollingTimer.value)
+    pollingTimer.value = null
+  }
+  if (pollingTimeout.value) {
+    clearTimeout(pollingTimeout.value)
+    pollingTimeout.value = null
+  }
+  isPolling.value = false
+}
+
+// 开奖后轮询获取新期号数据
+const startPolling = () => {
+  console.log('开奖了，开始轮询获取新期号数据...')
+  
+  // 清除之前的轮询
+  stopPolling()
+  
+  const startTime = Date.now()
+  const maxDuration = 60 * 1000 // 1分钟超时
+  const pollingInterval = 3000 // 每3秒轮询一次
+  
+  isPolling.value = true
+  
+  // 立即执行一次
+  fetchSummaryWithNewIssue()
+  
+  // 设置轮询定时器
+  pollingTimer.value = window.setInterval(() => {
+    const elapsed = Date.now() - startTime
+    
+    if (elapsed >= maxDuration) {
+      console.log('轮询超时（1分钟），停止轮询')
+      stopPolling()
+      ElMessage.warning('获取新期号数据超时，请手动刷新')
+      return
+    }
+    
+    fetchSummaryWithNewIssue()
+  }, pollingInterval)
+  
+  // 设置超时定时器
+  pollingTimeout.value = window.setTimeout(() => {
+    if (isPolling.value) {
+      console.log('轮询超时，强制停止')
+      stopPolling()
+    }
+  }, maxDuration)
+}
+
+// 获取新期号的汇总数据
+const fetchSummaryWithNewIssue = async () => {
+  const newIssue = countdownRef.value?.currentPeriod
+  
+  if (!newIssue) {
+    console.log('期号未更新，继续等待...')
+    return
+  }
+  
+  // 如果期号已更新，停止轮询
+  if (newIssue !== currentIssue.value) {
+    console.log(`检测到新期号: ${newIssue}，停止轮询`)
+    currentIssue.value = newIssue
+    await fetchSummary()
+    stopPolling()
+    ElMessage.success(`已更新到新期号: ${newIssue}`)
+  }
+}
+
+// 开奖事件处理
+const handleDraw = () => {
+  console.log('收到开奖事件')
+  startPolling()
+}
+
+// 监听当前期号变化，自动更新汇总数据
+watch(() => countdownRef.value?.currentPeriod, (newIssue) => {
+  if (newIssue && newIssue !== currentIssue.value && !isPolling.value) {
+    currentIssue.value = newIssue
+    fetchSummary()
+  }
+}, { immediate: false })
 
 onMounted(() => {
   fetchBetList()
-  fetchSummary() // 初始化加载汇总数据
+  
+  // 等待倒计时组件加载完成后获取当前期号
+  setTimeout(() => {
+    if (countdownRef.value?.currentPeriod) {
+      currentIssue.value = countdownRef.value.currentPeriod
+      fetchSummary()
+    }
+  }, 1000)
+})
+
+onUnmounted(() => {
+  // 组件卸载时清除轮询
+  stopPolling()
 })
 </script>
 
@@ -306,6 +419,16 @@ onMounted(() => {
   .bet-list-section {
     flex: 1;
     min-width: 0;
+    
+    .table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      
+      @media (max-width: 768px) {
+        margin: 0 -16px;
+        padding: 0 16px;
+      }
+    }
   }
 
   .bet-content {
@@ -450,6 +573,39 @@ onMounted(() => {
   .bet-records-page {
     .summary-section .summary-items {
       grid-template-columns: repeat(2, 1fr);
+    }
+    
+    // 表格字体大小优化
+    :deep(.el-table) {
+      font-size: 12px;
+      
+      .el-table__cell {
+        padding: 6px 2px;
+      }
+      
+      .cell {
+        padding: 0 2px;
+      }
+    }
+    
+    // 分页优化
+    :deep(.el-pagination) {
+      justify-content: center;
+      flex-wrap: wrap;
+      
+      .el-pagination__sizes,
+      .el-pagination__jump {
+        display: none;
+      }
+      
+      .btn-next,
+      .btn-prev,
+      .el-pager li {
+        min-width: 26px;
+        height: 26px;
+        line-height: 26px;
+        font-size: 12px;
+      }
     }
   }
 }

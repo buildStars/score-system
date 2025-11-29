@@ -100,11 +100,11 @@ export interface CancelBetParams {
 /**
  * 取消当前期某个玩法的下注
  */
-export function cancelBet(data: CancelBetParams): Promise<ApiResponse<{ message: string; refundAmount: number; newPoints: number }>> {
+export function cancelBet(data: CancelBetParams): Promise<ApiResponse<{ message: string; cancelledCount: number; newPoints: number }>> {
   return request({
     url: '/user/cancel-bet',
     method: 'post',
     data,
-  }) as Promise<ApiResponse<{ message: string; refundAmount: number; newPoints: number }>>
+  }) as Promise<ApiResponse<{ message: string; cancelledCount: number; newPoints: number }>>
 }
 

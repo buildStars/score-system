@@ -14,11 +14,12 @@
         <el-menu
           :default-active="activeMenu"
           :router="true"
-          :collapse="isCollapse"
+          :collapse="false"
           background-color="#001529"
           text-color="#fff"
           active-text-color="#409eff"
           @select="handleMenuSelect"
+          class="sidebar-menu"
         >
           <el-menu-item
             v-for="route in menuRoutes"
@@ -102,15 +103,14 @@ const isCollapse = ref(false)
 // 检测屏幕尺寸
 const checkMobile = () => {
   isMobile.value = window.innerWidth < 768
-  isCollapse.value = window.innerWidth < 768
+  // 移动端不折叠菜单，保持展开以显示文字
+  isCollapse.value = false
 }
 
 // 侧边栏宽度
 const sidebarWidth = computed(() => {
-  if (isMobile.value) {
-    return '240px'
-  }
-  return isCollapse.value ? '64px' : '240px'
+  // 统一使用 240px 宽度
+  return '240px'
 })
 
 // 切换移动端菜单
@@ -216,6 +216,18 @@ onUnmounted(() => {
 
   .el-menu {
     border-right: none;
+    
+    // 确保菜单文字显示
+    .el-menu-item {
+      .el-icon {
+        margin-right: 10px;
+      }
+      
+      span {
+        font-size: 14px;
+        color: #fff;
+      }
+    }
   }
   
   // 移动端样式
@@ -260,8 +272,26 @@ onUnmounted(() => {
     }
     
     .breadcrumb {
+      font-size: 16px;
+      
+      @media (max-width: 768px) {
+        font-size: 15px;
+      }
+      
       @media (max-width: 480px) {
         font-size: 14px;
+      }
+      
+      // 确保面包屑文字显示
+      :deep(.el-breadcrumb__item) {
+        .el-breadcrumb__inner {
+          color: #333;
+          font-weight: 500;
+          
+          @media (max-width: 480px) {
+            font-size: 14px;
+          }
+        }
       }
     }
   }

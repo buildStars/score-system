@@ -2,6 +2,7 @@ import { Controller, Get, Put, Post, Body, UseGuards, Param, ParseIntPipe } from
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SystemService } from './system.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { UpdateBetSettingsDto } from './dto/update-bet-settings.dto';
@@ -29,8 +30,9 @@ export class SystemController {
     };
   }
 
+  @Public()
   @Get('bet-settings')
-  @ApiOperation({ summary: '获取下注设置' })
+  @ApiOperation({ summary: '获取下注设置（公开接口）' })
   @ApiResponse({ status: 200, description: '获取成功' })
   async getBetSettings() {
     return this.systemService.getBetSettings();

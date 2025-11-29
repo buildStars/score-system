@@ -40,45 +40,57 @@
       </div>
 
       <!-- 积分记录列表 -->
-      <el-table :data="pointRecordList" stripe v-loading="loading" :style="{ marginTop: '20px' }">
-        <el-table-column label="用户" width="180">
+      <div class="table-wrapper">
+        <el-table :data="pointRecordList" stripe v-loading="loading" :style="{ marginTop: '20px' }" size="small">
+        <el-table-column label="用户" min-width="100">
           <template #default="{ row }">
             <div>
-              <div>{{ row.user?.nickname || row.user?.username || '-' }}</div>
-              <div style="font-size: 12px; color: #909399;">ID: {{ row.user?.id || '-' }}</div>
+              <div style="font-size: 13px;">{{ row.user?.nickname || row.user?.username || '-' }}</div>
+              <div style="font-size: 11px; color: #909399;">ID: {{ row.user?.id || '-' }}</div>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="操作类型" width="120">
+        <el-table-column label="类型" width="70">
           <template #default="{ row }">
-            <el-tag :type="getTypeColor(row.type)">
+            <el-tag :type="getTypeColor(row.type)" size="small">
               {{ formatPointType(row.type) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="变动金额" width="150">
+        <el-table-column label="金额" width="95" align="right">
           <template #default="{ row }">
-            <span :class="row.amount >= 0 ? 'profit-text' : 'loss-text'">
+            <span :class="row.amount >= 0 ? 'profit-text' : 'loss-text'" style="font-size: 13px;">
               {{ row.amount >= 0 ? '+' : '' }}¥{{ formatMoney(row.amount) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="变动前余额" width="150">
-          <template #default="{ row }">¥{{ formatMoney(row.balanceBefore) }}</template>
-        </el-table-column>
-        <el-table-column label="变动后余额" width="150">
-          <template #default="{ row }">¥{{ formatMoney(row.balanceAfter) }}</template>
-        </el-table-column>
-        <el-table-column prop="remark" label="备注" width="200" />
-        <el-table-column label="操作员" width="150">
+        <el-table-column label="前" width="85" align="right">
           <template #default="{ row }">
-            {{ row.operator?.realName || row.operator?.username || '-' }}
+            <span style="font-size: 13px;">¥{{ formatMoney(row.balanceBefore) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="时间" width="180">
-          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        <el-table-column label="后" width="85" align="right">
+          <template #default="{ row }">
+            <span style="font-size: 13px;">¥{{ formatMoney(row.balanceAfter) }}</span>
+          </template>
         </el-table-column>
-      </el-table>
+        <el-table-column prop="remark" label="备注" min-width="100">
+          <template #default="{ row }">
+            <span style="font-size: 13px;">{{ row.remark }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作员" min-width="80">
+          <template #default="{ row }">
+            <span style="font-size: 13px;">{{ row.operator?.realName || row.operator?.username || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="时间" min-width="130">
+          <template #default="{ row }">
+            <span style="font-size: 13px;">{{ formatDateTime(row.createdAt) }}</span>
+          </template>
+        </el-table-column>
+        </el-table>
+      </div>
 
       <!-- 分页 -->
       <el-pagination
@@ -184,6 +196,11 @@ onMounted(() => {
       flex-wrap: wrap;
     }
   }
+  
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 
   .profit-text {
     color: #67c23a;
@@ -193,6 +210,74 @@ onMounted(() => {
   .loss-text {
     color: #f56c6c;
     font-weight: bold;
+  }
+}
+
+// 移动端适配
+@media (max-width: 768px) {
+  .point-records {
+    .toolbar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      
+      .search-box {
+        flex-direction: column;
+        
+        .el-input,
+        .el-select,
+        .el-date-picker {
+          width: 100% !important;
+        }
+        
+        > * {
+          width: 100%;
+        }
+      }
+    }
+    
+    .table-wrapper {
+      margin: 0 -16px;
+      padding: 0 16px;
+    }
+    
+    :deep(.el-table) {
+      font-size: 13px;
+      
+      .el-table__cell {
+        padding: 8px 4px;
+      }
+      
+      .cell {
+        padding: 0 4px;
+      }
+    }
+    
+    :deep(.el-pagination) {
+      justify-content: center;
+      
+      .el-pagination__sizes,
+      .el-pagination__jump {
+        display: none;
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .point-records {
+    :deep(.el-table) {
+      font-size: 12px;
+      
+      .el-table__cell {
+        padding: 6px 2px;
+      }
+    }
+    
+    :deep(.el-button) {
+      padding: 6px 10px;
+      font-size: 12px;
+    }
   }
 }
 </style>

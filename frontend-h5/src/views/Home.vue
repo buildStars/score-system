@@ -76,38 +76,54 @@
           <div 
             v-for="option in ['单', '双']"
             :key="option"
-            :class="['option-btn', { 'active': selectedOption === option }]"
+            :class="['option-btn', { 
+              'active': selectedOption === option,
+              'disabled': !isOptionEnabled(option)
+            }]"
             @click="selectOption(option)"
           >
             {{ option }}
+            <span v-if="!isOptionEnabled(option)" class="disabled-tag">已禁用</span>
           </div>
         </div>
         <div class="options-row">
           <div 
             v-for="option in ['大', '小']"
             :key="option"
-            :class="['option-btn', { 'active': selectedOption === option }]"
+            :class="['option-btn', { 
+              'active': selectedOption === option,
+              'disabled': !isOptionEnabled(option)
+            }]"
             @click="selectOption(option)"
           >
             {{ option }}
+            <span v-if="!isOptionEnabled(option)" class="disabled-tag">已禁用</span>
           </div>
         </div>
         <div class="options-row">
           <div 
             v-for="option in ['大单', '大双', '小单', '小双']"
             :key="option"
-            :class="['option-btn', { 'active': selectedOption === option }]"
+            :class="['option-btn', { 
+              'active': selectedOption === option,
+              'disabled': !isOptionEnabled(option)
+            }]"
             @click="selectOption(option)"
           >
             {{ option }}
+            <span v-if="!isOptionEnabled(option)" class="disabled-tag">已禁用</span>
           </div>
         </div>
         <div class="options-row">
           <div 
-            :class="['option-btn', 'option-multiplier', { 'active': selectedOption === '倍数' }]"
+            :class="['option-btn', 'option-multiplier', { 
+              'active': selectedOption === '倍数',
+              'disabled': !isOptionEnabled('倍数')
+            }]"
             @click="selectOption('倍数')"
           >
             倍数
+            <span v-if="!isOptionEnabled('倍数')" class="disabled-tag">已禁用</span>
           </div>
         </div>
       </div>
@@ -186,14 +202,15 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
-import { showToast, showConfirmDialog } from 'vant'
+import { showToast, showConfirmDialog, closeToast } from 'vant'
 import { useUserStore } from '@/stores/user'
 import { useLotteryStore } from '@/stores/lottery'
-import { userApi, getLotteryStatus } from '@/api'
+import { userApi, getLotteryStatus, getBetTypeSettings } from '@/api'
 import { getCurrentIssueBets, cancelBet, type CurrentIssueBetsData } from '@/api/bet'
 import { formatMoney, formatIssue } from '@/utils/format'
 import type { BetType } from '@/types/bet'
 import type { LotteryStatus } from '@/api/lottery'
+import type { BetTypeSetting } from '@/api/system'
 
 const userStore = useUserStore()
 const lotteryStore = useLotteryStore()
@@ -206,6 +223,33 @@ const showQuickAmountSetting = ref(false)
 const lotteryStatus = ref<LotteryStatus | null>(null)
 const serverTimeOffset = ref(0) // 服务器时间与客户端时间的差值（毫秒）
 const currentIssueBets = ref<CurrentIssueBetsData | null>(null) // 当前期下注记录
+
+// 下注类型设置（从后端获取）
+const betTypeSettings = ref<BetTypeSetting[]>([])
+
+// 辅助函数：根据下注类型获取设置
+const getBetTypeSetting = (betType: string): BetTypeSetting | null => {
+  return betTypeSettings.value.find(s => s.betType === betType) || null
+}
+
+// 辅助函数：根据下注内容获取对应的 betType
+const getBetTypeFromContent = (content: string): string => {
+  if (content === '倍数') return 'multiple'
+  if (content === '大') return 'big'
+  if (content === '小') return 'small'
+  if (content === '单') return 'odd'
+  if (content === '双') return 'even'
+  if (['大单', '大双', '小单', '小双'].includes(content)) return 'combo'
+  return 'big' // 默认
+}
+
+// 辅助函数：检查选项是否可用
+const isOptionEnabled = (content: string): boolean => {
+  const betTypeName = getBetTypeFromContent(content)
+  const setting = getBetTypeSetting(betTypeName)
+  // 如果没有配置或配置为禁用，则不可用
+  return setting ? setting.isEnabled : true // 默认可用（兼容配置未加载的情况）
+}
 
 // 精简版：选中的下注选项
 const selectedOption = ref('')
@@ -251,16 +295,18 @@ const tempQuickAmounts = ref<string[]>([])
 let countdownTimer: number | null = null
 
 /**
- * 计算手续费
+ * 计算手续费（使用后端设置）
  */
 const calculateFee = (type: string) => {
   const amount = type === 'multiple' ? Number(multipleBet.amount) : Number(comboBet.amount)
   if (!amount || amount <= 0) return '0.00'
 
-  // 倍数下注：每100为3
-  // 组合下注：每100为5
-  const feeRate = type === 'multiple' ? 3 : 5
-  const fee = (amount / 100) * feeRate
+  // 获取对应类型的设置
+  const setting = getBetTypeSetting(type)
+  if (!setting) return '0.00'
+
+  // feeRate 是小数（如 0.03 表示 3%）
+  const fee = Math.floor(amount * Number(setting.feeRate))
   return formatMoney(fee)
 }
 
@@ -304,6 +350,15 @@ const setQuickAmount = (type: string, amount: number) => {
  * 精简版：选择下注选项
  */
 const selectOption = (option: string) => {
+  // 检查选项是否可用
+  if (!isOptionEnabled(option)) {
+    showToast({
+      message: '⚠️ 该选项已被禁用，无法下注',
+      type: 'fail',
+      duration: 2000,
+    })
+    return
+  }
   selectedOption.value = option
 }
 
@@ -359,6 +414,30 @@ const onCompactSubmitBet = async () => {
   }
 
   const amount = Number(betAmount.value)
+
+  // 验证金额范围（使用后端设置）
+  const betTypeName = getBetTypeFromContent(selectedOption.value)
+  const setting = getBetTypeSetting(betTypeName)
+  
+  if (setting) {
+    if (amount < Number(setting.minBet)) {
+      showToast({
+        message: `⚠️ ${setting.name} 最小下注金额为 ${formatMoney(Number(setting.minBet))}`,
+        type: 'fail',
+        duration: 2000,
+      })
+      return
+    }
+
+    if (amount > Number(setting.maxBet)) {
+      showToast({
+        message: `⚠️ ${setting.name} 最大下注金额为 ${formatMoney(Number(setting.maxBet))}`,
+        type: 'fail',
+        duration: 2000,
+      })
+      return
+    }
+  }
 
   if (amount > userStore.points) {
     showToast({
@@ -523,7 +602,7 @@ const handleCancelBet = async (betType: string, betContent: string) => {
     // 确认取消
     await showConfirmDialog({
       title: '确认取消',
-      message: `确定要取消 ${betType === 'multiple' ? betContent + '倍数' : betContent} 的下注吗？\n\n取消后将退回积分到您的账户。`,
+      message: `确定要取消 ${betType === 'multiple' ? betContent + '倍数' : betContent} 的下注吗？`,
       confirmButtonText: '确定取消',
       confirmButtonColor: '#ee0a24',
       cancelButtonText: '我再想想',
@@ -535,10 +614,10 @@ const handleCancelBet = async (betType: string, betContent: string) => {
       betContent,
     })
 
-    // res 是 ApiResponse<{ message, refundAmount, newPoints }> 类型
+    // res 是 ApiResponse<{ message, cancelledCount, currentPoints }> 类型
     // res.data 才是实际的数据对象
     showToast({
-      message: `✅ 取消成功！\n退回积分：${formatMoney(res.data.refundAmount)}`,
+      message: `✅ 取消成功！\n已取消 ${res.data.cancelledCount} 笔下注`,
       type: 'success',
       duration: 2500,
     })
@@ -619,6 +698,28 @@ const onSubmitBet = async (type: BetType) => {
       duration: 2000,
     })
     return
+  }
+
+  // 验证金额范围（使用后端设置）
+  const setting = getBetTypeSetting(type)
+  if (setting) {
+    if (amount < Number(setting.minBet)) {
+      showToast({
+        message: `⚠️ ${setting.name} 最小下注金额为 ${formatMoney(Number(setting.minBet))}`,
+        type: 'fail',
+        duration: 2000,
+      })
+      return
+    }
+
+    if (amount > Number(setting.maxBet)) {
+      showToast({
+        message: `⚠️ ${setting.name} 最大下注金额为 ${formatMoney(Number(setting.maxBet))}`,
+        type: 'fail',
+        duration: 2000,
+      })
+      return
+    }
   }
 
   if (amount > userStore.points) {
@@ -760,12 +861,14 @@ const calculateCountdown = (): number => {
   
   // 如果封盘时间还没到，显示距离封盘的倒计时
   if (now < closeTime) {
-    return Math.max(0, Math.floor((closeTime - now) / 1000))
+    // 使用 Math.ceil 向上取整，避免倒计时快1秒
+    return Math.max(0, Math.ceil((closeTime - now) / 1000))
   }
   
   // 如果开奖时间还没到，显示距离开奖的倒计时
   if (now < drawTime) {
-    return Math.max(0, Math.floor((drawTime - now) / 1000))
+    // 使用 Math.ceil 向上取整，避免倒计时快1秒
+    return Math.max(0, Math.ceil((drawTime - now) / 1000))
   }
   
   // 开奖时间已过，返回0
@@ -804,6 +907,14 @@ const onCountdownFinish = () => {
   } else {
     // 开奖倒计时结束，需要加载新一期数据
     console.log('✅ 开奖倒计时结束，加载新一期数据')
+    
+    // 显示刷新提示
+    showToast({
+      message: '🎲 正在开奖，即将刷新最新期数...',
+      type: 'loading',
+      duration: 0, // 持续显示直到手动关闭
+      forbidClick: true,
+    })
     
     // 延迟3秒刷新，等待后端同步新开奖数据
     setTimeout(() => {
@@ -867,6 +978,11 @@ const loadCurrentData = async () => {
       loadCurrentIssueBets(), // 加载当前期下注记录
     ])
     
+    // 关闭加载提示
+    closeToast()
+    
+   
+    
     // 启动倒计时
     startCountdown()
   } catch (error) {
@@ -906,7 +1022,25 @@ const startCountdown = () => {
   }, 1000)
 }
 
-onMounted(() => {
+/**
+ * 加载下注类型设置
+ */
+const loadBetTypeSettings = async () => {
+  try {
+    const res = await getBetTypeSettings()
+    if (res.data) {
+      betTypeSettings.value = res.data
+      console.log('✅ 下注类型设置加载成功:', betTypeSettings.value)
+    }
+  } catch (error) {
+    console.error('❌ 加载下注类型设置失败:', error)
+    // 出错时使用空数组，前端将无法验证
+  }
+}
+
+onMounted(async () => {
+  // 先加载下注类型设置
+  await loadBetTypeSettings()
   // loadCurrentData() 会自动加载 loadCurrentIssueBets()
   loadCurrentData()
 })
@@ -1161,6 +1295,29 @@ onUnmounted(() => {
         &.active {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           color: #fff;
+        }
+
+        &.disabled {
+          background: #e0e0e0;
+          color: #999;
+          cursor: not-allowed;
+          opacity: 0.6;
+          position: relative;
+
+          &:active {
+            transform: none;
+          }
+
+          .disabled-tag {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 10px;
+            background: #ff4d4f;
+            color: #fff;
+            padding: 2px 4px;
+            border-radius: 3px;
+          }
         }
       }
     }

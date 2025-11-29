@@ -12,7 +12,8 @@ import {
   parseLotteryNumbers,
   calculateMultipleBetResult,
   calculateComboBetResult,
-  isComboBetWin,
+  calculateBigSmallOddEvenResult,
+  isBetContentMatched,
 } from './utils/lottery-rules.util';
 import axios from 'axios';
 import * as https from 'https';
@@ -323,49 +324,74 @@ export class LotteryService {
    * 结算单个下注
    */
   private async settleSingleBet(bet: any, lotteryResult: any, betSettings: any) {
-    let resultAmount: number;
+    let settlementAmount: number;
     let fee: number;
-    let status: string;
+    let status: 'win' | 'loss';
+    
+    // 判断下注类型
+    const isBigSmallOddEven = ['大', '小', '单', '双'].includes(bet.betContent);
+    const isReturn = lotteryResult.isReturn === 1;
 
     if (bet.betType === 'multiple') {
-      // 倍数下注
+      // ⭐️ 倍数下注
       const result = calculateMultipleBetResult(
         Number(bet.amount),
-        lotteryResult.isReturn === 1,
+        isReturn,
         betSettings.multipleFeeRate,
         betSettings.multipleFeeBase,
-        betSettings.multipleLossRate,
       );
       
-      resultAmount = result.resultAmount;
+      settlementAmount = result.settlementAmount;
       fee = result.fee;
-      status = lotteryResult.isReturn === 1 ? 'win' : 'loss';
-    } else {
-      // 组合下注（反向逻辑）
+      status = result.status;
+    } 
+    else if (isBigSmallOddEven) {
+      // ⭐️ 大小单双
+      const result = calculateBigSmallOddEvenResult(
+        Number(bet.amount),
+        bet.betContent,
+        lotteryResult.resultSum,
+        isReturn,
+      );
+      
+      settlementAmount = result.settlementAmount;
+      fee = 0;  // 大小单双不单独收手续费
+      status = result.status;
+    } 
+    else {
+      // ⭐️ 组合下注（大单/大双/小单/小双）
       const result = calculateComboBetResult(
         Number(bet.amount),
-        bet.betContent,  // 用户下注的组合
-        lotteryResult.comboResult,  // 开奖组合结果
-        lotteryResult.isReturn === 1,  // 是否回本
+        bet.betContent,
+        lotteryResult.resultSum,
+        isReturn,
         betSettings.comboFeeRate,
         betSettings.comboFeeBase,
       );
       
-      resultAmount = result.resultAmount;
+      settlementAmount = result.settlementAmount;
       fee = result.fee;
-      // 反向逻辑：resultAmount > 0 表示赢钱
-      status = resultAmount > 0 ? 'win' : 'loss';
+      status = result.status;
     }
 
     // 使用事务更新
     await this.prisma.$transaction(async (tx) => {
-      const currentPoints = Number(bet.user.points);  // 当前积分（下注时已扣除 amount + fee）
+      // ⚠️ 重要：获取用户当前的最新积分（而不是下注时的积分）
+      // 这样可以正确处理同一期多笔下注的情况
+      const currentUser = await tx.user.findUnique({
+        where: { id: bet.userId },
+      });
       
-      // resultAmount 现在是净盈亏（已扣除本金和手续费）
-      // 计算最终积分：当前积分 + 净盈亏
-      // 向下取整，用户余额只显示整数
-      const finalPointsWithDecimal = currentPoints + resultAmount;
-      const finalPoints = Math.floor(finalPointsWithDecimal);
+      if (!currentUser) {
+        throw new Error(`用户 ${bet.userId} 不存在`);
+      }
+      
+      const currentPoints = Number(currentUser.points);
+      
+      // 计算结算后的最终积分：当前积分 + 结算分
+      // settlementAmount 是结算分，表示相对于下注前的积分变化
+      const finalPointsWithDecimal = currentPoints + settlementAmount;
+      const finalPoints = Math.floor(finalPointsWithDecimal);  // 向下取整
 
       // 更新用户积分（只保存整数）
       await tx.user.update({
@@ -380,24 +406,24 @@ export class LotteryService {
         where: { id: bet.id },
         data: {
           status,
-          resultAmount,  // 净盈亏
+          resultAmount: settlementAmount,  // 结算分
           fee,
           pointsAfter: finalPoints,
           settledAt: new Date(),
         },
       });
 
-      // 记录结算积分变动（净盈亏，已包含手续费）
+      // 记录结算积分变动（结算分）
       await tx.pointRecord.create({
         data: {
           userId: bet.userId,
           type: status === 'win' ? 'win' : 'loss',
-          amount: resultAmount,  // 净盈亏（已包含手续费）
-          balanceBefore: currentPoints,  // 结算前积分（下注时已扣除）
-          balanceAfter: finalPoints,  // 向下取整后的最终积分
+          amount: settlementAmount,  // 结算分（已包含手续费）
+          balanceBefore: currentPoints,  // 结算前的当前积分
+          balanceAfter: finalPoints,  // 结算后积分
           relatedId: bet.id,
           relatedType: 'bet',
-          remark: `期号${bet.issue}下注结算-${status === 'win' ? '中奖' : '未中'}（净盈亏含手续费${fee}）`,
+          remark: `期号${bet.issue}结算-${status === 'win' ? '赢' : '输'}(${bet.betType}:${bet.betContent})`,
           operatorType: 'system',
         },
       });

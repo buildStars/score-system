@@ -38,49 +38,63 @@
       </div>
 
       <!-- 用户列表 -->
-      <el-table :data="userList" stripe v-loading="loading" style="margin-top: 20px">
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="username" label="用户名" />
-        <el-table-column prop="nickname" label="昵称" />
-        <el-table-column label="积分">
-          <template #default="{ row }">¥{{ formatMoney(row.points) }}</template>
-        </el-table-column>
-        <el-table-column label="下注总额">
-          <template #default="{ row }">¥{{ formatMoney(row.totalBet) }}</template>
-        </el-table-column>
-        <el-table-column label="总赢">
-          <template #default="{ row }">¥{{ formatMoney(row.totalWin) }}</template>
-        </el-table-column>
-        <el-table-column label="总输">
-          <template #default="{ row }">¥{{ formatMoney(row.totalLoss) }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="100">
+      <div class="table-wrapper">
+        <el-table :data="userList" stripe v-loading="loading" :style="{ marginTop: '20px' }" size="small">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="username" label="用户名" min-width="90" />
+        <el-table-column prop="nickname" label="昵称" min-width="90" />
+        <el-table-column label="积分" width="90" align="right">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">
+            <span style="font-size: 13px;">¥{{ formatMoney(row.points) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="下注" width="90" align="right">
+          <template #default="{ row }">
+            <span style="font-size: 13px;">¥{{ formatMoney(row.totalBet) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="总赢" width="90" align="right">
+          <template #default="{ row }">
+            <span style="font-size: 13px;">¥{{ formatMoney(row.totalWin) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="总输" width="90" align="right">
+          <template #default="{ row }">
+            <span style="font-size: 13px;">¥{{ formatMoney(row.totalLoss) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="70">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row.status)" size="small">
               {{ formatUserStatus(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间">
-          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="320" fixed="right">
+        <el-table-column label="时间" min-width="130">
           <template #default="{ row }">
-            <el-button link type="success" size="small" @click="handleAddPoints(row)">
-              上分
-            </el-button>
-            <el-button link type="danger" size="small" @click="handleDeductPoints(row)">
-              下分
-            </el-button>
-            <el-button link type="warning" size="small" @click="handleResetPassword(row)">
-              重置密码
-            </el-button>
-            <el-button link type="info" size="small" @click="handleUpdateStatus(row)">
-              状态管理
-            </el-button>
+            <span style="font-size: 13px;">{{ formatDateTime(row.createdAt) }}</span>
           </template>
         </el-table-column>
-      </el-table>
+        <el-table-column label="操作" min-width="180">
+          <template #default="{ row }">
+            <div class="action-buttons">
+              <el-button link type="success" size="small" @click="handleAddPoints(row)">
+                上分
+              </el-button>
+              <el-button link type="danger" size="small" @click="handleDeductPoints(row)">
+                下分
+              </el-button>
+              <el-button link type="warning" size="small" @click="handleResetPassword(row)">
+                重置密码
+              </el-button>
+              <el-button link type="info" size="small" @click="handleUpdateStatus(row)">
+                状态
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
+        </el-table>
+      </div>
 
       <!-- 分页 -->
       <el-pagination
@@ -159,14 +173,6 @@
           <div style="color: #909399; font-size: 12px; margin-top: 5px;">
             操作后积分: ¥{{ calculateNewPoints() }}
           </div>
-        </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input
-            v-model="pointsDialog.form.remark"
-            type="textarea"
-            :rows="3"
-            :placeholder="pointsDialog.type === 'add' ? '请输入上分原因' : '请输入下分原因'"
-          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -316,7 +322,6 @@ const pointsRules = {
       trigger: 'blur'
     }
   ],
-  remark: [{ required: true, message: '请输入备注', trigger: 'blur' }],
 }
 
 // 计算操作后的积分
@@ -573,6 +578,94 @@ onMounted(() => {
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+  }
+  
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    
+    .el-button {
+      padding: 4px 8px;
+      margin: 0;
+    }
+  }
+}
+
+// 移动端适配
+@media (max-width: 768px) {
+  .users {
+    .toolbar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      
+      .search-box {
+        flex-direction: column;
+        
+        .el-input,
+        .el-select {
+          width: 100% !important;
+          margin-left: 0 !important;
+        }
+        
+        > * {
+          width: 100%;
+        }
+      }
+      
+      > .el-button {
+        width: 100%;
+      }
+    }
+    
+    .table-wrapper {
+      margin: 0 -16px;
+      padding: 0 16px;
+    }
+    
+    :deep(.el-table) {
+      font-size: 13px;
+      
+      .el-table__cell {
+        padding: 8px 4px;
+      }
+      
+      .cell {
+        padding: 0 4px;
+      }
+    }
+    
+    :deep(.el-pagination) {
+      justify-content: center;
+      
+      .el-pagination__sizes,
+      .el-pagination__jump {
+        display: none;
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .users {
+    :deep(.el-table) {
+      font-size: 12px;
+      
+      .el-table__cell {
+        padding: 6px 2px;
+      }
+    }
+    
+    :deep(.el-button) {
+      padding: 6px 10px;
+      font-size: 12px;
     }
   }
 }

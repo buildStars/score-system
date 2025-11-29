@@ -4,12 +4,14 @@ import { LotteryService } from './lottery.service';
 import { LotteryCountdownService } from './lottery-countdown.service';
 import { LotterySyncService } from './lottery-sync.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { QueryLotteryDto } from './dto/query-lottery.dto';
 import { SettleLotteryDto } from './dto/settle-lottery.dto';
 import { CreateLotteryDto } from './dto/create-lottery.dto';
 import { UpdateLotteryDto } from './dto/update-lottery.dto';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @ApiTags('开奖')
 @ApiBearerAuth()
@@ -19,6 +21,7 @@ export class LotteryController {
     private readonly lotteryService: LotteryService,
     private readonly countdownService: LotteryCountdownService,
     private readonly syncService: LotterySyncService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('current')
@@ -93,6 +96,25 @@ export class LotteryController {
   @ApiResponse({ status: 200, description: '获取成功' })
   async canPlaceBet() {
     return this.countdownService.canPlaceBet();
+  }
+
+  @Public()
+  @Get('bet-type-settings')
+  @ApiOperation({ summary: '获取所有下注类型配置（公开接口）' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  async getBetTypeSettings() {
+    return await this.prisma.betTypeSetting.findMany({
+      orderBy: { sortOrder: 'asc' },
+      select: {
+        betType: true,
+        name: true,
+        minBet: true,
+        maxBet: true,
+        feeRate: true,
+        isEnabled: true,
+        description: true,
+      },
+    });
   }
 
   @Post('refresh-status')

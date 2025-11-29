@@ -60,8 +60,8 @@
               <div v-else-if="item.status === 'cancelled'" class="result-cancelled">
                 取消
               </div>
-              <div v-else :class="['result-amount', getResultClass(getTotalProfitLoss(item))]">
-                {{ formatResultAmount(getTotalProfitLoss(item)) }}
+              <div v-else :class="['result-amount', getResultClass(item.resultAmount)]">
+                {{ formatResultAmount(item.resultAmount) }}
               </div>
             </div>
 
@@ -184,18 +184,15 @@ const getResultClass = (amount: number | null): string => {
 
 /**
  * 格式化结果金额
+ * 直接使用后端返回的 resultAmount（结算分）
  */
-/**
- * 计算总盈亏（结算后积分 - 下注前积分）
- */
-const getTotalProfitLoss = (item: any): number => {
-  if (!item.pointsBefore || !item.pointsAfter) return 0
-  return Number(item.pointsAfter) - Number(item.pointsBefore)
-}
-
-const formatResultAmount = (amount: number | null): string => {
+const formatResultAmount = (amount: number | string | null): string => {
   if (amount === null || amount === undefined) return '-'
   const num = Number(amount)
+  
+  // 处理NaN的情况
+  if (isNaN(num)) return '-'
+  
   if (num > 0) {
     return `+${formatMoney(num)}`
   } else if (num < 0) {

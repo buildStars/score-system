@@ -2,7 +2,10 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBetDto } from './dto/create-bet.dto';
 import { QueryBetDto } from './dto/query-bet.dto';
-import { validateBetContent } from '../lottery/utils/lottery-rules.util';
+import { 
+  validateBetContent, 
+  calculateMinimumBalance 
+} from '../lottery/utils/lottery-rules.util';
 import { LotteryCountdownService } from '../lottery/lottery-countdown.service';
 
 @Injectable()
@@ -67,15 +70,10 @@ export class BetService {
       throw new BadRequestException('用户状态异常');
     }
 
-    // 6. 验证积分是否足够
-    if (Number(user.points) < amount) {
-      throw new BadRequestException('积分不足');
-    }
-
-    // 7. 获取下注设置
+    // 6. 获取下注设置
     const betSettings = await this.getBetSettings();
 
-    // 8. 验证下注金额范围
+    // 7. 验证下注金额范围
     if (amount < betSettings.minBetAmount) {
       throw new BadRequestException(`下注金额不能少于${betSettings.minBetAmount}`);
     }
@@ -83,7 +81,7 @@ export class BetService {
       throw new BadRequestException(`下注金额不能超过${betSettings.maxBetAmount}`);
     }
 
-    // 9. 验证单期下注次数
+    // 8. 验证单期下注次数
     const betCount = await this.prisma.bet.count({
       where: { userId, issue: currentIssue },
     });
@@ -92,29 +90,69 @@ export class BetService {
       throw new BadRequestException(`每期最多下注${betSettings.maxBetsPerIssue}次`);
     }
 
-    // 10. 计算手续费（下注时扣除）
-    const feeWithDecimal = betType === 'multiple'
-      ? (amount / betSettings.multipleFeeBase) * betSettings.multipleFeeRate
-      : (amount / betSettings.comboFeeBase) * betSettings.comboFeeRate;
-    const fee = Math.floor(feeWithDecimal);  // 向下取整
+    // 9. 计算本次下注的最大可能损失（用于余额检查）
+    const { minimumBalance: maxPossibleLoss, breakdown } = calculateMinimumBalance(
+      betType === 'multiple' ? 'multiple' : 'combo',
+      amount,
+      betContent,
+      betType === 'multiple' ? betSettings.multipleFeeRate : betSettings.comboFeeRate,
+      betType === 'multiple' ? betSettings.multipleFeeBase : betSettings.comboFeeBase,
+    );
 
-    // 11. 计算总扣除金额（本金 + 手续费）
-    const totalDeduct = amount + fee;
+    // 10. 计算所有未结算注单的最大可能损失
+    const pendingBets = await this.prisma.bet.findMany({
+      where: { 
+        userId, 
+        status: 'pending',
+      },
+      select: {
+        id: true,
+        betType: true,
+        amount: true,
+        betContent: true,
+      },
+    });
 
-    // 12. 使用事务创建下注记录
+    const pendingLoss = pendingBets.reduce((sum, bet) => {
+      const { minimumBalance: loss } = calculateMinimumBalance(
+        bet.betType === 'multiple' ? 'multiple' : 'combo',
+        bet.amount,
+        bet.betContent,
+        bet.betType === 'multiple' ? betSettings.multipleFeeRate : betSettings.comboFeeRate,
+        bet.betType === 'multiple' ? betSettings.multipleFeeBase : betSettings.comboFeeBase,
+      );
+      return sum + loss;
+    }, 0);
+
+    // 11. 检查可用余额是否足够
+    const currentPoints = Number(user.points);
+    const availableBalance = currentPoints - pendingLoss;
+    
+    if (availableBalance < maxPossibleLoss) {
+      throw new BadRequestException(
+        `可用余额不足。当前积分: ${currentPoints}, ` +
+        `未结算占用: ${Math.floor(pendingLoss)}, ` +
+        `可用余额: ${Math.floor(availableBalance)}, ` +
+        `本次需要: ${Math.floor(maxPossibleLoss)} (${breakdown})`
+      );
+    }
+
+    // 12. 计算手续费（记录但不在下注时扣除）
+    const isBigSmallOddEven = ['大', '小', '单', '双'].includes(betContent);
+    let fee = 0;
+    
+    if (betType === 'multiple') {
+      // 倍数下注：每 100 倍数 = 3 分手续费
+      fee = Math.floor((amount / betSettings.multipleFeeBase) * betSettings.multipleFeeRate);
+    } else if (!isBigSmallOddEven) {
+      // 组合下注（非大小单双）：每 100 本金 = 5 分手续费
+      fee = Math.floor((amount / betSettings.comboFeeBase) * betSettings.comboFeeRate);
+    }
+    // 大小单双：手续费 = 0（不单独收手续费）
+
+    // 13. 使用事务创建下注记录（不扣分）
     return await this.prisma.$transaction(async (tx) => {
-      // 扣除用户积分（本金 + 手续费，向下取整）
-      const currentPoints = Number(user.points);
-      const newPoints = Math.floor(currentPoints - totalDeduct);
-      
-      await tx.user.update({
-        where: { id: userId },
-        data: { 
-          points: newPoints,
-        },
-      });
-
-      // 创建下注记录（使用当前期号）
+      // 创建下注记录（不扣除积分，只记录）
       const bet = await tx.bet.create({
         data: {
           userId,
@@ -123,25 +161,12 @@ export class BetService {
           betContent,
           amount,
           fee,
-          pointsBefore: currentPoints,
+          pointsBefore: currentPoints,  // 记录下注时的积分
           status: 'pending',
         },
       });
 
-      // 记录积分变动（显示总扣除金额：本金 + 手续费）
-      await tx.pointRecord.create({
-        data: {
-          userId,
-          type: 'bet',
-          amount: -totalDeduct,  // 显示本金+手续费
-          balanceBefore: currentPoints,
-          balanceAfter: newPoints,
-          relatedId: bet.id,
-          relatedType: 'bet',
-          remark: `期号${currentIssue} ${betType === 'multiple' ? '倍数' : '组合'}下注（本金${amount}+手续费${fee}）`,
-          operatorType: 'system',
-        },
-      });
+      // 注意：下注时不创建 PointRecord，只在结算时创建
 
       return {
         betId: bet.id,
@@ -151,7 +176,8 @@ export class BetService {
         amount: bet.amount,
         fee: bet.fee,
         pointsBefore: Number(bet.pointsBefore),
-        pointsAfter: newPoints,
+        availableBalance: Math.floor(availableBalance - maxPossibleLoss), // 下注后的可用余额
+        lockedAmount: Math.floor(pendingLoss + maxPossibleLoss), // 锁定金额
         status: bet.status,
         createdAt: bet.createdAt,
       };
@@ -241,14 +267,29 @@ export class BetService {
 
   /**
    * 合并同一期的多个下注记录
+   * 注意：只合并已结算的记录（win/loss），排除 cancelled 和 pending
    */
   private mergeBetsByIssue(bets: any[]): any {
     if (bets.length === 0) return null;
-    if (bets.length === 1) return bets[0];
+    
+    // 🔧 修复：只合并已结算的记录，排除 cancelled
+    const settledBets = bets.filter(b => b.status === 'win' || b.status === 'loss');
+    
+    // 如果没有已结算的记录，检查是否有 pending 或 cancelled
+    if (settledBets.length === 0) {
+      // 如果只有一条记录（无论什么状态），直接返回
+      if (bets.length === 1) return bets[0];
+      
+      // 如果有多条 pending/cancelled，只返回第一条（避免显示混乱）
+      return bets[0];
+    }
+    
+    // 如果只有一条已结算的记录，直接返回
+    if (settledBets.length === 1) return settledBets[0];
 
-    // 按类型分组
-    const multipleBets = bets.filter(b => b.betType === 'multiple');
-    const comboBets = bets.filter(b => b.betType === 'combo');
+    // 按类型分组（只处理已结算的）
+    const multipleBets = settledBets.filter(b => b.betType === 'multiple');
+    const comboBets = settledBets.filter(b => b.betType === 'combo');
 
     // 汇总倍数下注
     let totalMultiple = 0;
@@ -276,55 +317,56 @@ export class BetService {
       mergedContent += (mergedContent ? ' ' : '') + comboStr;
     }
 
-    // 汇总金额
-    const totalAmount = bets.reduce((sum, bet) => sum + Number(bet.amount), 0);
-    const totalFee = bets.reduce((sum, bet) => sum + Number(bet.fee), 0);
+    // 汇总金额（只统计已结算的）
+    const totalAmount = settledBets.reduce((sum, bet) => sum + Number(bet.amount), 0);
+    const totalFee = settledBets.reduce((sum, bet) => sum + Number(bet.fee), 0);
     
-    // 汇总结果金额
-    let totalResultAmount = null;
-    const allSettled = bets.every(bet => bet.status !== 'pending');
-    if (allSettled) {
-      totalResultAmount = bets.reduce((sum, bet) => {
-        return sum + (bet.resultAmount ? Number(bet.resultAmount) : 0);
-      }, 0);
-    }
+    // 汇总结果金额（只统计已结算的）
+    const totalResultAmount = settledBets.reduce((sum, bet) => {
+      return sum + (bet.resultAmount ? Number(bet.resultAmount) : 0);
+    }, 0);
 
     // 确定状态
-    let mergedStatus = 'pending';
-    if (allSettled) {
-      if (totalResultAmount > 0) {
-        mergedStatus = 'win';
-      } else if (totalResultAmount < 0) {
-        mergedStatus = 'loss';
-      } else {
-        mergedStatus = 'loss';
-      }
+    let mergedStatus: string;
+    if (totalResultAmount > 0) {
+      mergedStatus = 'win';
+    } else if (totalResultAmount < 0) {
+      mergedStatus = 'loss';
+    } else {
+      // resultAmount = 0 的情况（例如命中且回本）
+      mergedStatus = 'win';
     }
 
     // 取最早的下注时间和最晚的结算时间
-    const earliestBet = bets.reduce((earliest, bet) => 
+    const earliestBet = settledBets.reduce((earliest, bet) => 
       new Date(bet.createdAt) < new Date(earliest.createdAt) ? bet : earliest
     );
-    const latestSettled = bets.find(bet => bet.settledAt);
+    const latestSettled = settledBets.reduce((latest, bet) => 
+      bet.settledAt && (!latest.settledAt || new Date(bet.settledAt) > new Date(latest.settledAt)) ? bet : latest
+    );
+
+    // 🔧 修复：使用第一条记录的 pointsBefore 和最后一条结算记录的 pointsAfter
+    const firstPointsBefore = earliestBet.pointsBefore;
+    const lastPointsAfter = latestSettled.pointsAfter;
 
     // 返回合并后的记录
     return {
-      id: bets[0].id, // 使用第一条记录的ID
-      userId: bets[0].userId,
-      issue: bets[0].issue,
+      id: settledBets[0].id, // 使用第一条已结算记录的ID
+      userId: settledBets[0].userId,
+      issue: settledBets[0].issue,
       betType: multipleBets.length > 0 && comboBets.length > 0 ? 'mixed' : 
                multipleBets.length > 0 ? 'multiple' : 'combo',
       betContent: mergedContent,
       amount: totalAmount.toString(),
       fee: totalFee.toString(),
       status: mergedStatus,
-      resultAmount: totalResultAmount?.toString() || null,
-      pointsBefore: earliestBet.pointsBefore,
-      pointsAfter: bets[bets.length - 1].pointsAfter,
-      settledAt: latestSettled?.settledAt || null,
+      resultAmount: totalResultAmount.toString(),
+      pointsBefore: firstPointsBefore,
+      pointsAfter: lastPointsAfter,
+      settledAt: latestSettled.settledAt,
       createdAt: earliestBet.createdAt,
-      updatedAt: bets[bets.length - 1].updatedAt,
-      betCount: bets.length, // 额外字段：本期下注次数
+      updatedAt: settledBets[settledBets.length - 1].updatedAt,
+      betCount: settledBets.length, // 额外字段：已结算的下注次数（排除cancelled）
     };
   }
 
@@ -607,10 +649,10 @@ export class BetService {
       throw new BadRequestException('未找到该玩法的下注记录');
     }
 
-    // 5. 计算需要退回的总积分（下注金额 + 手续费）
-    const totalRefund = bets.reduce((sum, bet) => sum + Number(bet.amount) + Number(bet.fee), 0);
-
-    // 6. 获取用户当前积分
+    // 5. 新规则：下注时没有扣分，取消下注只需要更新状态
+    // 不需要退还积分，只需要释放"锁定"的可用余额（系统会自动处理）
+    
+    // 6. 获取用户当前积分（用于返回信息）
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -619,47 +661,31 @@ export class BetService {
       throw new BadRequestException('用户不存在');
     }
 
-    const newPoints = Number(user.points) + totalRefund;
+    const currentPoints = Number(user.points);
 
-    // 7. 使用事务：更新下注状态为cancelled + 退回积分 + 创建积分记录
+    // 7. 使用事务：仅更新下注状态为 cancelled
     await this.prisma.$transaction(async (tx) => {
-      // 更新所有相关下注记录的状态为cancelled
+      // 更新所有相关下注记录的状态为 cancelled
       await tx.bet.updateMany({
         where: {
           id: { in: bets.map(b => b.id) },
         },
         data: {
           status: 'cancelled',
-          pointsAfter: newPoints,
+          pointsAfter: currentPoints,  // 记录取消时的积分（不变）
           settledAt: new Date(),
         },
       });
 
-      // 更新用户积分
-      await tx.user.update({
-        where: { id: userId },
-        data: { points: newPoints },
-      });
-
-      // 创建积分记录
-      await tx.pointRecord.create({
-        data: {
-          userId,
-          type: 'refund',
-          amount: totalRefund,
-          balanceBefore: Number(user.points),
-          balanceAfter: newPoints,
-          relatedId: bets[0].id,
-          relatedType: 'bet',
-          remark: `取消下注退款：${issue} ${betType === 'multiple' ? betContent + '倍数' : betContent}`,
-        },
-      });
+      // 注意：新规则下，不需要退还积分，因为下注时没有扣除
+      // 不需要更新 user.points
+      // 不需要创建 PointRecord
     });
 
     return {
       message: '取消成功',
-      refundAmount: totalRefund,
-      newPoints,
+      cancelledCount: bets.length,
+      currentPoints,
     };
   }
 
@@ -677,10 +703,12 @@ export class BetService {
       status: { not: 'cancelled' }, // 排除已取消的下注
     };
 
-    // ⚠️ 统计所有期号所有用户，不过滤期号和用户
-    // if (issue) {
-    //   where.issue = issue;
-    // }
+    // 按期号筛选（如果提供）- 只统计当前期号
+    if (issue) {
+      where.issue = issue;
+    }
+    
+    // 不筛选用户，统计所有用户的数据
     // if (userId) {
     //   where.userId = userId;
     // }

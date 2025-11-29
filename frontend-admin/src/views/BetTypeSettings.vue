@@ -20,10 +20,11 @@
         </template>
       </el-alert>
 
-      <el-table :data="settingsList" border v-loading="loading">
-        <el-table-column prop="name" label="模式" width="100" fixed />
+      <div class="table-wrapper">
+        <el-table :data="settingsList" border v-loading="loading" size="small">
+        <el-table-column prop="name" label="模式" width="80" />
         
-        <el-table-column label="赔率" width="120">
+        <el-table-column label="赔率" width="100">
           <template #default="{ row }">
             <el-input-number
               v-model="row.odds"
@@ -37,7 +38,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="最小投注" width="130">
+        <el-table-column label="最小" width="100">
           <template #default="{ row }">
             <el-input-number
               v-model="row.minBet"
@@ -51,7 +52,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="最大投注" width="130">
+        <el-table-column label="最大" width="100">
           <template #default="{ row }">
             <el-input-number
               v-model="row.maxBet"
@@ -65,7 +66,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="手续费(%)" width="150">
+        <el-table-column label="费率" width="110">
           <template #default="{ row }">
             <el-input-number
               v-model="row.feeRate"
@@ -76,24 +77,24 @@
               size="small"
               controls-position="right"
             />
-            <div style="color: #909399; font-size: 11px;">
+            <div style="color: #909399; font-size: 10px;">
               {{ (row.feeRate || 0).toFixed(2) }}%
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="启用" width="80" align="center">
+        <el-table-column label="启用" width="60" align="center">
           <template #default="{ row }">
-            <el-switch v-model="row.isEnabled" />
+            <el-switch v-model="row.isEnabled" size="small" />
           </template>
         </el-table-column>
 
-        <el-table-column label="说明" width="150">
+        <el-table-column label="说明" min-width="100">
           <template #default="{ row }">
-            {{ row.description }}
+            <span style="font-size: 13px;">{{ row.description }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column label="操作" width="100">
           <template #default="{ row }">
             <el-button 
               link 
@@ -105,7 +106,8 @@
             </el-button>
           </template>
         </el-table-column>
-      </el-table>
+        </el-table>
+      </div>
 
       <div class="tips" style="margin-top: 20px;">
         <el-alert type="warning" :closable="false">
@@ -264,6 +266,11 @@ onMounted(() => {
     justify-content: space-between;
     align-items: center;
   }
+  
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 
   :deep(.el-input-number) {
     width: 100%;
@@ -279,6 +286,71 @@ onMounted(() => {
         color: #606266;
         font-size: 14px;
       }
+    }
+  }
+}
+
+// 移动端适配
+@media (max-width: 768px) {
+  .bet-type-settings {
+    .card-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      
+      span {
+        text-align: center;
+      }
+      
+      .el-button {
+        width: 100%;
+      }
+    }
+    
+    .table-wrapper {
+      margin: 0 -16px;
+      padding: 0 16px;
+    }
+    
+    :deep(.el-table) {
+      font-size: 13px;
+      
+      .el-table__cell {
+        padding: 8px 4px;
+      }
+      
+      .cell {
+        padding: 0 4px;
+      }
+      
+      .el-input-number {
+        .el-input__inner {
+          font-size: 13px;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .bet-type-settings {
+    :deep(.el-table) {
+      font-size: 12px;
+      
+      .el-table__cell {
+        padding: 6px 2px;
+      }
+      
+      .el-input-number {
+        .el-input__inner {
+          font-size: 12px;
+        }
+      }
+    }
+    
+    :deep(.el-button) {
+      padding: 6px 10px;
+      font-size: 12px;
     }
   }
 }

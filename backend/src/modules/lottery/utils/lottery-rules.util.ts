@@ -1,6 +1,11 @@
 /**
- * 开奖规则工具类
- * 包含回本判定、大小单双判定等核心业务逻辑
+ * 开奖规则工具类 - 完全重构版
+ * 
+ * 核心规则：
+ * 1. 回本判断：对子/豹子/顺子/和值13或14
+ * 2. 倍数下注：回本(+倍数-费)，不回本(-0.8倍-费)
+ * 3. 大小单双：命中不回本(+1.8倍)，命中回本(0)，未命中(-本金)
+ * 4. 组合下注：命中不回本(-5倍-费)，命中回本(-费)，未命中(+本金-费)
  */
 
 /**
@@ -22,34 +27,36 @@ export function isShunzi(n1: number, n2: number, n3: number): boolean {
 }
 
 /**
- * 判断是否回本
+ * 判断是否回本（全玩法通用）
  * 
  * 回本条件（满足任一即可）：
  * 1. 对子：三个号码中有两个相同
  * 2. 豹子：三个号码完全相同
- * 3. 顺子：三个号码任意排列为连续数字
- * 4. 总和为13或14
+ * 3. 顺子：三个号码任意排列为连续数字（含 0-1-9、0-8-9）
+ * 4. 和值为 13 或 14
  */
 export function isReturn(n1: number, n2: number, n3: number, sum: number): {
   isReturn: boolean;
   reason: string | null;
 } {
-  // 1. 检查对子或豹子
+  // 1. 检查豹子（三个完全相同）
   if (n1 === n2 && n1 === n3) {
     return { isReturn: true, reason: '豹子' };
   }
+  
+  // 2. 检查对子（任意两个相同）
   if (n1 === n2 || n1 === n3 || n2 === n3) {
     return { isReturn: true, reason: '对子' };
   }
   
-  // 2. 检查顺子
+  // 3. 检查顺子
   if (isShunzi(n1, n2, n3)) {
     return { isReturn: true, reason: '顺子' };
   }
   
-  // 3. 检查总和13或14
+  // 4. 检查和值 13 或 14
   if (sum === 13 || sum === 14) {
-    return { isReturn: true, reason: `总和${sum}` };
+    return { isReturn: true, reason: `和值${sum}` };
   }
   
   return { isReturn: false, reason: null };
@@ -83,9 +90,9 @@ export function getComboResult(sum: number): '大单' | '大双' | '小单' | '�
 }
 
 /**
- * 判断组合下注是否中奖
+ * 判断下注内容是否命中
  */
-export function isComboBetWin(betContent: string, resultSum: number): boolean {
+export function isBetContentMatched(betContent: string, resultSum: number): boolean {
   const size = getSizeResult(resultSum);
   const oddEven = getOddEvenResult(resultSum);
   const combo = getComboResult(resultSum);
@@ -104,100 +111,224 @@ export function isComboBetWin(betContent: string, resultSum: number): boolean {
 }
 
 /**
- * 计算倍数下注结果
- * resultAmount 表示净盈亏（已扣除本金和手续费）
+ * ⭐️ 计算倍数下注结果
+ * 
+ * 规则：
+ * - 回本：+倍数 × 1 − 手续费
+ * - 不回本：−倍数 × 0.8 − 手续费
+ * 
+ * @param multiplier 倍数
+ * @param isReturn 是否回本
+ * @param feeRate 手续费率（每100倍数收费，默认3）
+ * @param feeBase 手续费基数（默认100）
+ * 
+ * @returns settlementAmount: 结算时给用户增加/减少的积分
  */
 export function calculateMultipleBetResult(
-  amount: number,
+  multiplier: number,
   isReturn: boolean,
-  feeRate: number,
-  feeBase: number,
-  lossRate: number,
+  feeRate: number = 3,
+  feeBase: number = 100,
 ): {
   fee: number;
-  loss: number;
-  resultAmount: number;
+  settlementAmount: number;
+  status: 'win' | 'loss';
 } {
-  const fee = Math.floor((amount / feeBase) * feeRate);
+  // 手续费 = (倍数 / 100) × 3
+  const fee = Math.floor((multiplier / feeBase) * feeRate);
   
   if (isReturn) {
-    // 回本：返还2倍本金
-    // 下注时扣了：amount + fee
-    // 结算时返还：2 * amount
-    // 净盈亏 = 2*amount - (amount + fee) = amount - fee
-    const resultAmount = Math.floor(amount - fee);
+    // 回本：+倍数 × 1 − 手续费
+    const settlementAmount = multiplier - fee;
     return {
       fee,
-      loss: 0,
-      resultAmount,
+      settlementAmount,
+      status: 'win',
     };
   } else {
-    // 不回本：返还20%本金
-    // 下注时扣了：amount + fee
-    // 结算时返还：0.2 * amount
-    // 净盈亏 = 0.2*amount - (amount + fee) = -0.8*amount - fee
-    const returnAmount = Math.floor(amount * (1 - lossRate));  // 20%本金
-    const resultAmount = Math.floor(returnAmount - amount - fee);
+    // 不回本：−倍数 × 0.8 − 手续费
+    const settlementAmount = -(multiplier * 0.8 + fee);
     return {
       fee,
-      loss: Math.floor(amount * lossRate),
-      resultAmount,
+      settlementAmount,
+      status: 'loss',
     };
   }
 }
 
 /**
- * 计算组合下注结果（反向逻辑）
- * resultAmount 表示净盈亏（已扣除本金和手续费）
+ * ⭐️ 计算大小单双下注结果
+ * 
+ * 规则：
+ * - 命中 & 不回本：+本金 × 1.8
+ * - 命中 & 回本：0
+ * - 未命中：−本金
+ * 
+ * 注意：大小单双不单独收手续费（走组合逻辑）
+ * 
+ * @param amount 下注本金
+ * @param betContent 下注内容（大/小/单/双）
+ * @param resultSum 开奖和值
+ * @param isReturn 是否回本
+ * 
+ * @returns settlementAmount: 结算时给用户增加/减少的积分
+ */
+export function calculateBigSmallOddEvenResult(
+  amount: number,
+  betContent: string,
+  resultSum: number,
+  isReturn: boolean,
+): {
+  settlementAmount: number;
+  status: 'win' | 'loss';
+  matched: boolean;
+} {
+  const matched = isBetContentMatched(betContent, resultSum);
+  
+  if (matched && !isReturn) {
+    // 情况1：命中 & 不回本 → +本金 × 1.8
+    return {
+      settlementAmount: amount * 1.8,
+      status: 'win',
+      matched: true,
+    };
+  }
+  
+  if (matched && isReturn) {
+    // 情况2：命中 & 回本 → 0
+    return {
+      settlementAmount: 0,
+      status: 'win',
+      matched: true,
+    };
+  }
+  
+  // 情况3：未命中 → −本金
+  return {
+    settlementAmount: -amount,
+    status: 'loss',
+    matched: false,
+  };
+}
+
+/**
+ * ⭐️ 计算组合下注结果
+ * 
+ * 规则：
+ * - 命中 & 不回本：−本金 × 5 − 手续费
+ * - 命中 & 回本：0 − 手续费
+ * - 未命中：+本金 × 1 − 手续费
+ * 
+ * @param amount 下注本金
+ * @param betContent 下注内容（大单/大双/小单/小双）
+ * @param resultSum 开奖和值
+ * @param isReturn 是否回本
+ * @param feeRate 手续费率（每100本金收费，默认5）
+ * @param feeBase 手续费基数（默认100）
+ * 
+ * @returns settlementAmount: 结算时给用户增加/减少的积分
  */
 export function calculateComboBetResult(
   amount: number,
   betContent: string,
-  comboResult: string,
+  resultSum: number,
   isReturn: boolean,
-  feeRate: number,
-  feeBase: number,
+  feeRate: number = 5,
+  feeBase: number = 100,
 ): {
   fee: number;
-  resultAmount: number;
+  settlementAmount: number;
+  status: 'win' | 'loss';
+  matched: boolean;
 } {
+  // 手续费 = (本金 / 100) × 5
   const fee = Math.floor((amount / feeBase) * feeRate);
+  const matched = isBetContentMatched(betContent, resultSum);
   
-  // 判断是否中奖（反向逻辑）
-  const isMatched = betContent === comboResult;
-  
-  if (!isMatched) {
-    // 情况1：没中奖（用户赢）-> 返还2倍本金
-    // 下注时扣了：amount + fee
-    // 结算时返还：2 * amount
-    // 净盈亏 = 2*amount - (amount + fee) = amount - fee
-    const resultAmount = Math.floor(amount - fee);
+  if (matched && !isReturn) {
+    // 情况1：命中 & 不回本 → −本金 × 5 − 手续费
     return {
       fee,
-      resultAmount,
+      settlementAmount: -(amount * 5 + fee),
+      status: 'loss',
+      matched: true,
     };
   }
   
-  if (isReturn) {
-    // 情况2：中奖且回本 -> 返还本金
-    // 下注时扣了：amount + fee
-    // 结算时返还：amount
-    // 净盈亏 = amount - (amount + fee) = -fee
-    const resultAmount = Math.floor(-fee);
+  if (matched && isReturn) {
+    // 情况2：命中 & 回本 → 0 − 手续费
     return {
       fee,
-      resultAmount,
+      settlementAmount: -fee,
+      status: 'loss',
+      matched: true,
     };
   }
   
-  // 情况3：中奖且不回本 -> 扣除额外4倍本金（总共5倍）
-  // 下注时已扣：amount + fee
-  // 结算时再扣：4 * amount
-  // 净盈亏 = -4*amount - (amount + fee) = -5*amount - fee
-  const resultAmount = Math.floor(-5 * amount - fee);
+  // 情况3：未命中 → +本金 × 1 − 手续费
   return {
     fee,
-    resultAmount,
+    settlementAmount: amount - fee,
+    status: 'win',
+    matched: false,
+  };
+}
+
+/**
+ * 计算下注前最低余额要求
+ * 
+ * @param betType 下注类型
+ * @param amount 下注金额/倍数
+ * @param betContent 下注内容（组合下注时需要）
+ * @param feeRate 手续费率
+ * @param feeBase 手续费基数
+ * 
+ * @returns minimumBalance: 最低余额要求
+ */
+export function calculateMinimumBalance(
+  betType: 'multiple' | 'combo',
+  amount: number,
+  betContent?: string,
+  feeRate?: number,
+  feeBase?: number,
+): {
+  minimumBalance: number;
+  breakdown: string;
+} {
+  if (betType === 'multiple') {
+    // 倍数下注：最低余额 = 倍数 × 0.8 + 手续费
+    const fee = Math.floor((amount / (feeBase || 100)) * (feeRate || 3));
+    const minimumBalance = amount * 0.8 + fee;
+    return {
+      minimumBalance,
+      breakdown: `倍数 ${amount} × 0.8 + 手续费 ${fee} = ${minimumBalance}`,
+    };
+  }
+  
+  if (betType === 'combo') {
+    // 组合下注判断
+    const isBigSmallOddEven = ['大', '小', '单', '双'].includes(betContent || '');
+    
+    if (isBigSmallOddEven) {
+      // 大小单双：最低余额 = 本金
+      return {
+        minimumBalance: amount,
+        breakdown: `本金 ${amount}`,
+      };
+    } else {
+      // 组合（大单/大双/小单/小双）：最低余额 = 本金 × 5 + 手续费
+      const fee = Math.floor((amount / (feeBase || 100)) * (feeRate || 5));
+      const minimumBalance = amount * 5 + fee;
+      return {
+        minimumBalance,
+        breakdown: `本金 ${amount} × 5 + 手续费 ${fee} = ${minimumBalance}`,
+      };
+    }
+  }
+  
+  return {
+    minimumBalance: amount,
+    breakdown: `本金 ${amount}`,
   };
 }
 
@@ -255,4 +386,3 @@ export function parseLotteryNumbers(lotteryStr: string): {
 export function formatLotteryNumbers(n1: number, n2: number, n3: number): string {
   return `${n1}+${n2}+${n3}`;
 }
-
