@@ -305,7 +305,7 @@ export class LotteryService {
     let settledCount = 0;
     for (const bet of pendingBets) {
       try {
-        await this.settleSingleBet(bet, lotteryResult, betSettings);
+        await this.settleSingleBet(bet, lotteryResult, betSettings, betTypeSettingsMap);
         settledCount++;
       } catch (error) {
         console.error(`结算下注失败 [BetID: ${bet.id}]:`, error);
@@ -329,7 +329,12 @@ export class LotteryService {
   /**
    * 结算单个下注
    */
-  private async settleSingleBet(bet: any, lotteryResult: any, betSettings: any) {
+  private async settleSingleBet(
+    bet: any, 
+    lotteryResult: any, 
+    betSettings: any, 
+    betTypeSettingsMap: Map<string, any>
+  ) {
     let settlementAmount: number;
     let fee: number;
     let status: 'win' | 'loss';
