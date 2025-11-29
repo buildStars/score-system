@@ -193,7 +193,9 @@ export class BetService {
     // 12. 使用事务创建下注记录（不扣分）
     return await this.prisma.$transaction(async (tx) => {
       // 创建下注记录（不扣除积分，只记录）
-      console.log(`💾 准备存储到数据库: fee = ${fee} (${typeof fee})`);
+      // ⚠️ 使用字符串格式存储 fee，确保 Prisma Decimal 精度
+      const feeValue = fee.toFixed(2);  // 转为字符串保留精度
+      console.log(`💾 准备存储到数据库: fee = ${fee} -> "${feeValue}" (${typeof feeValue})`);
       
       const bet = await tx.bet.create({
         data: {
@@ -202,7 +204,7 @@ export class BetService {
           betType,
           betContent,
           amount,
-          fee: fee, // Prisma 会自动转换为 Decimal
+          fee: feeValue,  // 使用字符串，Prisma 会精确转为 Decimal
           pointsBefore: currentPoints,  // 记录下注时的积分
           status: 'pending',
         },
