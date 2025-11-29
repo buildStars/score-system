@@ -75,7 +75,8 @@ services:
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     volumes:
-      - ./backend:/app
+      # 生产环境不挂载源码，使用容器内构建好的代码
+      # - ./backend:/app  # 开发环境才需要
       - /app/node_modules
       - backend-logs:/app/logs
     networks:
