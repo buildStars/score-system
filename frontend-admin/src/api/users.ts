@@ -46,6 +46,13 @@ export const updateUserStatus = (userId: number, data: { status: number }) => {
   return request.put<any, ApiResponse>(`/admin/users/${userId}/status`, data)
 }
 
+/**
+ * 删除用户
+ */
+export const deleteUser = (userId: number) => {
+  return request.delete<any, ApiResponse>(`/admin/users/${userId}`)
+}
+
 
 
 

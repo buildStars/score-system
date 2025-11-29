@@ -74,9 +74,9 @@ model Bet {
   betType      String    @map("bet_type") @db.VarChar(20)
   betContent   String    @map("bet_content") @db.VarChar(50)
   amount       Int       @db.Int
-  fee          Int       @default(0) @db.Int
+  fee          Decimal   @default(0) @db.Decimal(10, 2)
   status       String    @default("pending") @db.VarChar(20)
-  resultAmount Int?      @map("result_amount") @db.Int
+  resultAmount Decimal?  @map("result_amount") @db.Decimal(10, 2)
   pointsBefore Int       @map("points_before") @db.Int
   pointsAfter  Int?      @map("points_after") @db.Int
   settledAt    DateTime? @map("settled_at")

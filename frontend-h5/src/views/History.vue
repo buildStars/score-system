@@ -68,17 +68,23 @@
                 <span class="sum">{{ item.resultSum }}</span>
               </div>
 
-              <!-- 标签 -->
+              <!-- 标签（位置固定对齐：左-大小，中-单双，右-回）-->
               <div class="tags">
+                <!-- 左边：大/小 -->
                 <span :class="['tag-circle', getSizeClass(item.sizeResult)]">
                   {{ item.sizeResult }}
                 </span>
+                
+                <!-- 中间：单/双 -->
                 <span :class="['tag-circle', getOddEvenClass(item.oddEvenResult)]">
                   {{ item.oddEvenResult }}
                 </span>
-                <span v-if="item.isReturn" class="tag-circle tag-return">
+                
+                <!-- 右边：回本（不回本时占位但不显示）-->
+                <span v-if="item.isReturn === 1" class="tag-circle tag-return">
                   回
                 </span>
+                <span v-else class="tag-placeholder"></span>
               </div>
             </div>
           </div>
@@ -383,10 +389,11 @@ const getOddEvenClass = (oddEven: string): string => {
     }
   }
 
-  // 标签圆圈
+  // 标签圆圈（位置固定对齐）
   .tags {
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     gap: 6px;
     flex-shrink: 0;
 
@@ -400,26 +407,39 @@ const getOddEvenClass = (oddEven: string): string => {
       font-size: 12px;
       font-weight: 600;
       color: #fff;
+      flex-shrink: 0; // 不缩小
     }
 
+    // 占位符（不回本时占位）
+    .tag-placeholder {
+      width: 28px;
+      height: 28px;
+      flex-shrink: 0;
+    }
+
+    // 大 - 红色
     .tag-big {
       background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
     }
 
+    // 小 - 蓝色
     .tag-small {
       background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
     }
 
+    // 单 - 红色
     .tag-odd {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
     }
 
+    // 双 - 蓝色
     .tag-even {
       background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
     }
 
+    // 回本 - 绿色（最右侧）
     .tag-return {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
     }
   }
 }

@@ -401,13 +401,18 @@ export class LotteryService {
         },
       });
 
-      // 更新下注记录
+      // 更新下注记录（确保小数精度）
+      const resultAmountValue = Number(settlementAmount.toFixed(2));
+      const feeValue = Number(fee.toFixed(2));
+      
+      console.log(`💾 结算存储: resultAmount=${resultAmountValue}, fee=${feeValue}`);
+      
       await tx.bet.update({
         where: { id: bet.id },
         data: {
           status,
-          resultAmount: settlementAmount,  // 结算分
-          fee,
+          resultAmount: resultAmountValue,  // 保留两位小数的 number
+          fee: feeValue,  // 保留两位小数的 number
           pointsAfter: finalPoints,
           settledAt: new Date(),
         },
@@ -418,9 +423,9 @@ export class LotteryService {
         data: {
           userId: bet.userId,
           type: status === 'win' ? 'win' : 'loss',
-          amount: settlementAmount,  // 结算分（已包含手续费）
-          balanceBefore: currentPoints,  // 结算前的当前积分
-          balanceAfter: finalPoints,  // 结算后积分
+          amount: resultAmountValue,  // 保留两位小数的 number
+          balanceBefore: currentPoints,  // 结算前的当前积分（整数）
+          balanceAfter: finalPoints,  // 结算后积分（整数）
           relatedId: bet.id,
           relatedType: 'bet',
           remark: `期号${bet.issue}结算-${status === 'win' ? '赢' : '输'}(${bet.betType}:${bet.betContent})`,
@@ -434,22 +439,29 @@ export class LotteryService {
    * 获取下注设置
    */
   private async getBetSettings() {
-    const settings = await this.prisma.betSetting.findMany();
-    const result: any = {};
+    // 从 bet_type_settings 表获取配置
+    const betTypeSettings = await this.prisma.betTypeSetting.findMany();
     
-    settings.forEach((setting) => {
-      const key = setting.settingKey.replace(/_./g, (m) => m[1].toUpperCase());
-      result[key] = setting.valueType === 'number' 
-        ? parseFloat(setting.settingValue) 
-        : setting.settingValue;
+    // 将数组转换为对象映射
+    const settingsMap: any = {};
+    betTypeSettings.forEach((setting) => {
+      settingsMap[setting.betType] = {
+        feeRate: Number(setting.feeRate),
+      };
     });
 
+    // 获取倍数下注配置
+    const multipleConfig = settingsMap['multiple'] || {};
+    // 获取组合下注配置
+    const comboConfig = settingsMap['big_odd'] || settingsMap['combo'] || {};
+
+    // 转换 feeRate：0.03 (3%) -> 3, feeBase = 100
     return {
-      multipleFeeRate: result.multipleFeeRate || 3,
-      multipleFeeBase: result.multipleFeeBase || 100,
-      comboFeeRate: result.comboFeeRate || 5,
-      comboFeeBase: result.comboFeeBase || 100,
-      multipleLossRate: result.multipleLossRate || 0.8,
+      multipleFeeRate: (multipleConfig.feeRate || 0.03) * 100,
+      multipleFeeBase: 100,
+      comboFeeRate: (comboConfig.feeRate || 0.05) * 100,
+      comboFeeBase: 100,
+      multipleLossRate: 0.8,
     };
   }
 

@@ -60,18 +60,18 @@
         <el-table-column label="金额" width="95" align="right">
           <template #default="{ row }">
             <span :class="row.amount >= 0 ? 'profit-text' : 'loss-text'" style="font-size: 13px;">
-              {{ row.amount >= 0 ? '+' : '' }}¥{{ formatMoney(row.amount) }}
+              {{ row.amount >= 0 ? '+' : '' }}{{ formatMoney(row.amount) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="前" width="85" align="right">
           <template #default="{ row }">
-            <span style="font-size: 13px;">¥{{ formatMoney(row.balanceBefore) }}</span>
+            <span style="font-size: 13px;">{{ formatMoney(row.balanceBefore) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="后" width="85" align="right">
           <template #default="{ row }">
-            <span style="font-size: 13px;">¥{{ formatMoney(row.balanceAfter) }}</span>
+            <span style="font-size: 13px;">{{ formatMoney(row.balanceAfter) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="100">

@@ -25,7 +25,7 @@ export function formatTime(date: string | Date, format = 'HH:mm:ss'): string {
 }
 
 /**
- * 格式化金额
+ * 格式化金额（保留小数）
  */
 export function formatMoney(amount: number | string, decimals = 2): string {
   if (amount === null || amount === undefined || amount === '') return '0.00'
@@ -38,12 +38,27 @@ export function formatMoney(amount: number | string, decimals = 2): string {
 }
 
 /**
+ * 格式化积分（向下取整显示，内部计算用小数）
+ * 例如：1085.66 → 1085
+ */
+export function formatPoints(amount: number | string): string {
+  if (amount === null || amount === undefined || amount === '') return '0'
+  
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount
+  
+  if (isNaN(num)) return '0'
+  
+  // 向下取整
+  return Math.floor(num).toString()
+}
+
+/**
  * 格式化积分变动（带符号）
  */
-export function formatPointChange(amount: number): string {
+export function formatPointChange(amount: number, decimals = 2): string {
   if (amount === 0) return '0'
-  if (amount > 0) return `+${formatMoney(amount)}`
-  return formatMoney(amount)
+  if (amount > 0) return `+${formatMoney(amount,decimals)}`
+  return formatMoney(amount,decimals)
 }
 
 /**

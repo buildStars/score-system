@@ -10,7 +10,7 @@ import { ILotteryDataSource, LotteryDataItem } from '../interfaces/lottery-data-
 @Injectable()
 export class USA28DataSource implements ILotteryDataSource {
   name = 'USA28';
-  priority = 1;
+  priority = 2;  // 备用数据源
   enabled = true;
   
   private readonly logger = new Logger(USA28DataSource.name);
@@ -32,18 +32,33 @@ export class USA28DataSource implements ILotteryDataSource {
         t: Date.now().toString(),
       };
 
+      // 每次请求创建新的 agent
       const httpsAgent = new https.Agent({
         rejectUnauthorized: false,
+        keepAlive: false,
+        maxSockets: 1,
+        minVersion: 'TLSv1.2',
+        maxVersion: 'TLSv1.3',
       });
 
       const response = await axios.get(this.apiUrl, {
         params,
-        timeout: 10000,
+        timeout: 15000,
         httpsAgent,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'application/json, text/plain, */*',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Connection': 'close',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+          'Sec-Ch-Ua-Mobile': '?0',
+          'Sec-Ch-Ua-Platform': '"Windows"',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'cross-site',
         },
         validateStatus: (status) => status < 500,
       });
@@ -83,6 +98,25 @@ export class USA28DataSource implements ILotteryDataSource {
     } catch (error) {
       const responseTime = Date.now() - startTime;
       this.logger.error(`❌ USA28失败 (${responseTime}ms): ${error.message}`);
+      
+      // 打印详细错误信息
+      if (error.code) {
+        this.logger.error(`   错误代码: ${error.code}`);
+      }
+      if (error.errno) {
+        this.logger.error(`   错误编号: ${error.errno}`);
+      }
+      if (error.syscall) {
+        this.logger.error(`   系统调用: ${error.syscall}`);
+      }
+      if (error.response) {
+        this.logger.error(`   响应状态: ${error.response.status}`);
+        this.logger.error(`   响应数据: ${JSON.stringify(error.response.data)}`);
+      }
+      
+      // 打印完整堆栈（开发环境）
+      this.logger.debug(`   完整错误: ${JSON.stringify(error, null, 2)}`);
+      
       throw error;
     }
   }

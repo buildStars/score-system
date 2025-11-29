@@ -6,7 +6,21 @@
  * 2. 倍数下注：回本(+倍数-费)，不回本(-0.8倍-费)
  * 3. 大小单双：命中不回本(+1.8倍)，命中回本(0)，未命中(-本金)
  * 4. 组合下注：命中不回本(-5倍-费)，命中回本(-费)，未命中(+本金-费)
+ * 
+ * 金额计算规则：
+ * - 计算过程使用小数，保留两位小数，四舍五入
+ * - 最终结果向下取整存储为整数
  */
+
+/**
+ * 金额处理：四舍五入到两位小数
+ * 例如：
+ *   85.666 → 85.67
+ *   -555.166 → -555.17
+ */
+function roundToTwoDecimals(value: number): number {
+  return Math.round(value * 100) / 100;
+}
 
 /**
  * 判断是否为顺子
@@ -134,20 +148,24 @@ export function calculateMultipleBetResult(
   settlementAmount: number;
   status: 'win' | 'loss';
 } {
-  // 手续费 = (倍数 / 100) × 3
-  const fee = Math.floor((multiplier / feeBase) * feeRate);
+  // 手续费 = (倍数 / 100) × 3，四舍五入到两位小数
+  const feeRaw = (multiplier / feeBase) * feeRate;
+  const fee = roundToTwoDecimals(feeRaw);
   
   if (isReturn) {
-    // 回本：+倍数 × 1 − 手续费
-    const settlementAmount = multiplier - fee;
+    // 回本：+倍数 × 1 − 手续费，四舍五入到两位小数
+    const settlementRaw = multiplier - fee;
+    const settlementAmount = roundToTwoDecimals(settlementRaw);
     return {
       fee,
       settlementAmount,
       status: 'win',
     };
   } else {
-    // 不回本：−倍数 × 0.8 − 手续费
-    const settlementAmount = -(multiplier * 0.8 + fee);
+    // 不回本：−倍数 × 0.8 − 手续费，四舍五入到两位小数
+    const lossAmount = multiplier * 0.8;
+    const settlementRaw = -(lossAmount + fee);
+    const settlementAmount = roundToTwoDecimals(settlementRaw);
     return {
       fee,
       settlementAmount,
@@ -186,9 +204,10 @@ export function calculateBigSmallOddEvenResult(
   const matched = isBetContentMatched(betContent, resultSum);
   
   if (matched && !isReturn) {
-    // 情况1：命中 & 不回本 → +本金 × 1.8
+    // 情况1：命中 & 不回本 → +本金 × 1.8，四舍五入到两位小数
+    const settlementRaw = amount * 1.8;
     return {
-      settlementAmount: amount * 1.8,
+      settlementAmount: roundToTwoDecimals(settlementRaw),
       status: 'win',
       matched: true,
     };
@@ -203,7 +222,7 @@ export function calculateBigSmallOddEvenResult(
     };
   }
   
-  // 情况3：未命中 → −本金
+  // 情况3：未命中 → −本金（本金是整数，不需要处理）
   return {
     settlementAmount: -amount,
     status: 'loss',
@@ -241,34 +260,37 @@ export function calculateComboBetResult(
   status: 'win' | 'loss';
   matched: boolean;
 } {
-  // 手续费 = (本金 / 100) × 5
-  const fee = Math.floor((amount / feeBase) * feeRate);
+  // 手续费 = (本金 / 100) × 5，四舍五入到两位小数
+  const feeRaw = (amount / feeBase) * feeRate;
+  const fee = roundToTwoDecimals(feeRaw);
   const matched = isBetContentMatched(betContent, resultSum);
   
   if (matched && !isReturn) {
-    // 情况1：命中 & 不回本 → −本金 × 5 − 手续费
+    // 情况1：命中 & 不回本 → −本金 × 5 − 手续费，四舍五入到两位小数
+    const settlementRaw = -(amount * 5 + fee);
     return {
       fee,
-      settlementAmount: -(amount * 5 + fee),
+      settlementAmount: roundToTwoDecimals(settlementRaw),
       status: 'loss',
       matched: true,
     };
   }
   
   if (matched && isReturn) {
-    // 情况2：命中 & 回本 → 0 − 手续费
+    // 情况2：命中 & 回本 → 0 − 手续费，四舍五入到两位小数
     return {
       fee,
-      settlementAmount: -fee,
+      settlementAmount: roundToTwoDecimals(-fee),
       status: 'loss',
       matched: true,
     };
   }
   
-  // 情况3：未命中 → +本金 × 1 − 手续费
+  // 情况3：未命中 → +本金 × 1 − 手续费，四舍五入到两位小数
+  const settlementRaw = amount - fee;
   return {
     fee,
-    settlementAmount: amount - fee,
+    settlementAmount: roundToTwoDecimals(settlementRaw),
     status: 'win',
     matched: false,
   };
@@ -286,22 +308,23 @@ export function calculateComboBetResult(
  * @returns minimumBalance: 最低余额要求
  */
 export function calculateMinimumBalance(
-  betType: 'multiple' | 'combo',
+  betType: string,
   amount: number,
   betContent?: string,
   feeRate?: number,
   feeBase?: number,
+  multipleLossRate: number = 0.8,
 ): {
   minimumBalance: number;
   breakdown: string;
 } {
   if (betType === 'multiple') {
-    // 倍数下注：最低余额 = 倍数 × 0.8 + 手续费
+    // 倍数下注：最低余额 = 倍数 × 损失率 + 手续费
     const fee = Math.floor((amount / (feeBase || 100)) * (feeRate || 3));
-    const minimumBalance = amount * 0.8 + fee;
+    const minimumBalance = amount * multipleLossRate + fee;
     return {
       minimumBalance,
-      breakdown: `倍数 ${amount} × 0.8 + 手续费 ${fee} = ${minimumBalance}`,
+      breakdown: `倍数 ${amount} × ${multipleLossRate} + 手续费 ${fee} = ${minimumBalance}`,
     };
   }
   
@@ -340,9 +363,17 @@ export function validateBetContent(betType: string, betContent: string): boolean
     // 倍数下注：只需要是正数
     const amount = parseFloat(betContent);
     return !isNaN(amount) && amount > 0;
-  } else if (betType === 'combo') {
-    // 组合下注：必须是合法的组合选项
-    const validOptions = ['大', '小', '单', '双', '大单', '大双', '小单', '小双'];
+  }
+  
+  // 大小单双下注
+  if (['big', 'small', 'odd', 'even'].includes(betType)) {
+    const validOptions = ['大', '小', '单', '双'];
+    return validOptions.includes(betContent);
+  }
+  
+  // 组合下注
+  if (['big_odd', 'big_even', 'small_odd', 'small_even', 'combo'].includes(betType)) {
+    const validOptions = ['大单', '大双', '小单', '小双'];
     return validOptions.includes(betContent);
   }
   

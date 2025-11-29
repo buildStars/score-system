@@ -10,7 +10,7 @@ import { ILotteryDataSource, LotteryDataItem } from '../interfaces/lottery-data-
 @Injectable()
 export class JND28DataSource implements ILotteryDataSource {
   name = 'JND28';
-  priority = 2;
+  priority = 1;  // 主数据源
   enabled = true;
   
   private readonly logger = new Logger(JND28DataSource.name);
@@ -28,21 +28,34 @@ export class JND28DataSource implements ILotteryDataSource {
       const params = {
         game_id: '7',
         page: '1',
-        pageSize: '2',  // 只获取最新2条
+        pageSize: '2',
       };
 
-      // 创建 https agent，忽略 SSL 证书验证（仅开发环境）
       const httpsAgent = new https.Agent({
         rejectUnauthorized: false,
+        keepAlive: false,
+        maxSockets: 1,
+        minVersion: 'TLSv1.2',
+        maxVersion: 'TLSv1.3',
       });
 
       const response = await axios.get(this.apiUrl, {
         params,
-        timeout: 10000,
-        httpsAgent,  // 使用自定义 https agent
+        timeout: 15000,
+        httpsAgent,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'application/json',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Connection': 'close',
+          'Cache-Control': 'no-cache',
+          'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+          'Sec-Ch-Ua-Mobile': '?0',
+          'Sec-Ch-Ua-Platform': '"Windows"',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'cross-site',
         },
         validateStatus: (status) => status < 500,
       });
@@ -58,13 +71,15 @@ export class JND28DataSource implements ILotteryDataSource {
 
       // 解析result_list中的数据
       for (const item of apiData.result_list) {
-        // JND28的期号格式可能不同，需要转换为USA28的格式
-        // 确保期号是7位数字
         const issue = String(item.expect);
+        
+        // 🔧 修复：使用 opentime 作为开奖时间（格式: "21:39:30"）
+        // datetime 是数据入库时间，opentime 才是真正的开奖时间
+        const drawTimeStr = item.datetime.split(' ')[0] + ' ' + item.opentime; // "2025-11-29 21:39:30"
         
         result.push({
           issue: issue,
-          drawTime: new Date(item.datetime),
+          drawTime: new Date(drawTimeStr),
           number1: Number(item.code1),
           number2: Number(item.code2),
           number3: Number(item.code3),
@@ -80,6 +95,25 @@ export class JND28DataSource implements ILotteryDataSource {
     } catch (error) {
       const responseTime = Date.now() - startTime;
       this.logger.error(`❌ JND28失败 (${responseTime}ms): ${error.message}`);
+      
+      // 打印详细错误信息
+      if (error.code) {
+        this.logger.error(`   错误代码: ${error.code}`);
+      }
+      if (error.errno) {
+        this.logger.error(`   错误编号: ${error.errno}`);
+      }
+      if (error.syscall) {
+        this.logger.error(`   系统调用: ${error.syscall}`);
+      }
+      if (error.response) {
+        this.logger.error(`   响应状态: ${error.response.status}`);
+        this.logger.error(`   响应数据: ${JSON.stringify(error.response.data)}`);
+      }
+      
+      // 打印完整堆栈（开发环境）
+      this.logger.debug(`   完整错误: ${JSON.stringify(error, null, 2)}`);
+      
       throw error;
     }
   }

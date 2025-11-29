@@ -1,5 +1,5 @@
 // 下注类型
-export type BetType = 'multiple' | 'combo'
+export type BetType = 'multiple' | 'big' | 'small' | 'odd' | 'even' | 'big_odd' | 'big_even' | 'small_odd' | 'small_even'
 
 // 组合下注内容
 export type ComboContent = '大' | '小' | '单' | '双' | '大单' | '大双' | '小单' | '小双'

@@ -74,7 +74,7 @@
                 -
               </div>
               <div v-else class="balance-amount">
-                {{ formatMoney(item.pointsAfter) }}
+                {{ formatPoints(item.pointsAfter) }}
               </div>
             </div>
           </div>
@@ -104,7 +104,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { showToast } from 'vant'
 import { getBetHistory } from '@/api/user'
-import { formatMoney } from '@/utils/format'
+import { formatMoney, formatPoints } from '@/utils/format'
 
 const activeNavTab = ref(1)
 

@@ -13,16 +13,16 @@
       <div class="summary-grid">
         <div class="summary-item">
           <div class="summary-label">累计上分</div>
-          <div class="summary-value positive">+{{ formatMoney(summaryData.totalRecharge) }}</div>
+          <div class="summary-value positive">+{{ formatMoney(summaryData.totalRecharge,0) }}</div>
         </div>
         <div class="summary-item">
           <div class="summary-label">累计下分</div>
-          <div class="summary-value negative">{{ formatMoney(summaryData.totalDeduct) }}</div>
+          <div class="summary-value negative">{{ formatMoney(summaryData.totalDeduct,0) }}</div>
         </div>
         <div class="summary-item">
           <div class="summary-label">净上分</div>
           <div :class="['summary-value', summaryData.netAmount >= 0 ? 'positive' : 'negative']">
-            {{ formatMoney(summaryData.netAmount) }}
+            {{ formatMoney(summaryData.netAmount,0) }}
           </div>
         </div>
       </div>
@@ -78,14 +78,14 @@
             <!-- 金额 -->
             <div class="data-col amount-col">
               <div :class="['amount-text', item.amount >= 0 ? 'profit' : 'loss']">
-                {{ formatPointChange(item.amount) }}
+                {{ formatPointChange(item.amount,0) }}
               </div>
             </div>
 
             <!-- 剩余积分 -->
             <div class="data-col balance-col">
               <div class="balance-text">
-                {{ formatMoney(item.balanceAfter) }}
+                {{ formatPoints(item.balanceAfter) }}
               </div>
             </div>
           </div>
@@ -116,7 +116,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { userApi } from '@/api'
-import { formatPointChange, formatMoney } from '@/utils/format'
+import { formatPointChange, formatMoney, formatPoints } from '@/utils/format'
 import type { PointRecord } from '@/types/bet'
 
 const router = useRouter()

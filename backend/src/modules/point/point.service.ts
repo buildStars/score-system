@@ -49,11 +49,14 @@ export class PointService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // 处理返回数据，统一类型显示为"上分"或"下分"
+    // 处理返回数据，格式化数字字段
     const processedList = list.map(record => {
       const amount = Number(record.amount);
       return {
         ...record,
+        amount: amount.toFixed(2), // 变动金额保留两位小数
+        balanceBefore: Math.floor(Number(record.balanceBefore)), // 积分返回整数
+        balanceAfter: Math.floor(Number(record.balanceAfter)), // 积分返回整数
         // 根据金额正负判断类型
         displayType: amount >= 0 ? '上分' : '下分',
         // 原始类型保留
@@ -124,11 +127,14 @@ export class PointService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // 处理返回数据，统一类型显示为"上分"或"下分"
+    // 处理返回数据，格式化数字字段
     const processedList = list.map(record => {
       const amount = Number(record.amount);
       return {
         ...record,
+        amount: amount.toFixed(2), // 变动金额保留两位小数
+        balanceBefore: Math.floor(Number(record.balanceBefore)), // 积分返回整数
+        balanceAfter: Math.floor(Number(record.balanceAfter)), // 积分返回整数
         // 根据金额正负判断类型
         displayType: amount >= 0 ? '上分' : '下分',
         // 原始类型保留
@@ -176,12 +182,12 @@ export class PointService {
     typeStats.forEach((stat) => {
       typeStatsMap[stat.type] = {
         count: stat._count.id,
-        amount: Number(stat._sum.amount || 0),
+        amount: Number(stat._sum.amount || 0).toFixed(2), // 金额保留两位小数
       };
     });
 
     return {
-      totalAmount: Number(result._sum.amount || 0),
+      totalAmount: Number(result._sum.amount || 0).toFixed(2), // 总金额保留两位小数
       typeStats: typeStatsMap,
     };
   }

@@ -4,6 +4,7 @@
       <!-- 搜索和操作栏 -->
       <div class="toolbar">
         <div class="search-box">
+          <div style="display: flex; align-items: center; gap: 5px;">
           <el-input
             v-model="searchForm.keyword"
             placeholder="搜索用户名/昵称"
@@ -14,68 +15,32 @@
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
-
-          <el-select
-            v-model="searchForm.status"
-            placeholder="用户状态"
-            clearable
-            style="width: 150px; margin-left: 10px"
-          >
-            <el-option label="正常" :value="1" />
-            <el-option label="禁用" :value="2" />
-            <el-option label="冻结" :value="3" />
-          </el-select>
-
           <el-button type="primary" :icon="Search" @click="handleSearch">
             搜索
           </el-button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 5px;justify-content: flex-end;">
+      
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-        </div>
+   
 
         <el-button type="primary" :icon="Plus" @click="handleCreate">
           创建用户
         </el-button>
       </div>
+    </div>
+      </div>
 
       <!-- 用户列表 -->
       <div class="table-wrapper">
         <el-table :data="userList" stripe v-loading="loading" :style="{ marginTop: '20px' }" size="small">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="username" label="用户名" min-width="90" />
-        <el-table-column prop="nickname" label="昵称" min-width="90" />
-        <el-table-column label="积分" width="90" align="right">
+        <el-table-column prop="username" label="用户名" width="120" />
+        <el-table-column label="当前积分" width="100" align="right">
           <template #default="{ row }">
-            <span style="font-size: 13px;">¥{{ formatMoney(row.points) }}</span>
+            <span style="font-size: 14px; font-weight: 600;">{{ formatMoney(row.points) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="下注" width="90" align="right">
-          <template #default="{ row }">
-            <span style="font-size: 13px;">¥{{ formatMoney(row.totalBet) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="总赢" width="90" align="right">
-          <template #default="{ row }">
-            <span style="font-size: 13px;">¥{{ formatMoney(row.totalWin) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="总输" width="90" align="right">
-          <template #default="{ row }">
-            <span style="font-size: 13px;">¥{{ formatMoney(row.totalLoss) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="70">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">
-              {{ formatUserStatus(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="时间" min-width="130">
-          <template #default="{ row }">
-            <span style="font-size: 13px;">{{ formatDateTime(row.createdAt) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" min-width="180">
+        <el-table-column label="操作" width="230">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button link type="success" size="small" @click="handleAddPoints(row)">
@@ -85,12 +50,17 @@
                 下分
               </el-button>
               <el-button link type="warning" size="small" @click="handleResetPassword(row)">
-                重置密码
+                改密码
               </el-button>
-              <el-button link type="info" size="small" @click="handleUpdateStatus(row)">
-                状态
+              <el-button link type="danger" size="small" @click="handleDelete(row)">
+                删除
               </el-button>
             </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="最后在线" min-width="140">
+          <template #default="{ row }">
+            <span style="font-size: 12px;">{{ row.lastLoginAt ? formatDateTime(row.lastLoginAt) : '从未登录' }}</span>
           </template>
         </el-table-column>
         </el-table>
@@ -150,7 +120,7 @@
               {{ pointsDialog.type === 'add' ? '💰 为用户增加积分' : '⚠️ 为用户扣除积分' }}
             </span>
             <span style="font-weight: bold; font-size: 16px;">
-              当前积分: ¥{{ formatMoney(pointsDialog.currentPoints) }}
+              当前积分: {{ formatMoney(pointsDialog.currentPoints) }}
             </span>
           </div>
         </template>
@@ -171,7 +141,7 @@
             :placeholder="pointsDialog.type === 'add' ? '请输入上分金额' : '请输入下分金额'"
           />
           <div style="color: #909399; font-size: 12px; margin-top: 5px;">
-            操作后积分: ¥{{ calculateNewPoints() }}
+            操作后积分: {{ calculateNewPoints() }}
           </div>
         </el-form-item>
       </el-form>
@@ -215,43 +185,21 @@
       </template>
     </el-dialog>
 
-    <!-- 状态管理对话框 -->
-    <el-dialog v-model="statusDialog.visible" title="状态管理" width="500px">
-      <el-form ref="statusFormRef" :model="statusDialog.form" :rules="statusRules" label-width="100px">
-        <el-form-item label="用户状态" prop="status">
-          <el-radio-group v-model="statusDialog.form.status">
-            <el-radio :value="1">正常</el-radio>
-            <el-radio :value="2">禁用</el-radio>
-            <el-radio :value="3">冻结</el-radio>
-          </el-radio-group>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="statusDialog.visible = false">取消</el-button>
-        <el-button
-          type="primary"
-          @click="handleUpdateStatusConfirm"
-          :loading="statusDialog.loading"
-        >
-          确定
-        </el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, nextTick } from 'vue'
-import { ElMessage, FormInstance } from 'element-plus'
+import { ElMessage, ElMessageBox, FormInstance } from 'element-plus'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import {
   getUserList,
   createUser,
   adjustUserPoints,
   resetUserPassword,
-  updateUserStatus,
+  deleteUser,
 } from '@/api/users'
-import { formatMoney, formatDateTime, formatUserStatus } from '@/utils/format'
+import { formatMoney, formatDateTime } from '@/utils/format'
 import type { User } from '@/types'
 
 const loading = ref(false)
@@ -260,7 +208,6 @@ const userList = ref<User[]>([])
 // 搜索表单
 const searchForm = reactive({
   keyword: '',
-  status: undefined as number | undefined,
 })
 
 // 分页
@@ -312,7 +259,7 @@ const pointsRules = {
   amount: [
     { required: true, message: '请输入金额', trigger: 'blur' },
     { 
-      validator: (rule: any, value: number, callback: Function) => {
+      validator: (_rule: any, value: number, callback: Function) => {
         if (value <= 0) {
           callback(new Error('金额必须大于0'))
         } else {
@@ -352,31 +299,6 @@ const passwordRules = {
   ],
 }
 
-// 状态管理对话框
-const statusDialog = reactive({
-  visible: false,
-  loading: false,
-  userId: 0,
-  form: {
-    status: 1,
-  },
-})
-
-const statusFormRef = ref<FormInstance>()
-const statusRules = {
-  status: [{ required: true, message: '请选择状态', trigger: 'change' }],
-}
-
-// 获取用户状态标签类型
-const getStatusType = (status: number) => {
-  const typeMap: Record<number, any> = {
-    1: 'success',
-    2: 'danger',
-    3: 'warning',
-  }
-  return typeMap[status] || 'info'
-}
-
 // 获取用户列表
 const fetchUserList = async () => {
   try {
@@ -385,7 +307,6 @@ const fetchUserList = async () => {
       page: pagination.page,
       limit: pagination.limit,
       keyword: searchForm.keyword || undefined,
-      status: searchForm.status,
     })
     userList.value = res.data.list
     pagination.total = res.data.total
@@ -405,7 +326,6 @@ const handleSearch = () => {
 // 重置
 const handleReset = () => {
   searchForm.keyword = ''
-  searchForm.status = undefined
   pagination.page = 1
   fetchUserList()
 }
@@ -535,30 +455,34 @@ const handleResetPasswordConfirm = async () => {
   }
 }
 
-// 状态管理
-const handleUpdateStatus = (user: User) => {
-  statusDialog.visible = true
-  statusDialog.userId = user.id
-  statusDialog.form = {
-    status: user.status,
-  }
-}
-
-// 确认更新状态
-const handleUpdateStatusConfirm = async () => {
-  if (!statusFormRef.value) return
-
+// 删除用户
+const handleDelete = async (user: User) => {
   try {
-    await statusFormRef.value.validate()
-    statusDialog.loading = true
-    await updateUserStatus(statusDialog.userId, statusDialog.form)
-    ElMessage.success('更新成功')
-    statusDialog.visible = false
+    await ElMessageBox.confirm(
+      `确认删除用户 "${user.username}" 吗？此操作不可恢复！`,
+      '删除确认',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        type: 'error',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+
+    await deleteUser(user.id)
+    ElMessage.success('用户删除成功')
+    
+    // 如果删除的是当前页最后一条，回到上一页
+    if (userList.value.length === 1 && pagination.page > 1) {
+      pagination.page--
+    }
+    
     fetchUserList()
-  } catch (error) {
-    console.error('更新状态失败:', error)
-  } finally {
-    statusDialog.loading = false
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('删除用户失败:', error)
+      ElMessage.error(error.response?.data?.message || '删除用户失败')
+    }
   }
 }
 
@@ -588,11 +512,11 @@ onMounted(() => {
   
   .action-buttons {
     display: flex;
-    gap: 4px;
+  
     flex-wrap: wrap;
     
     .el-button {
-      padding: 4px 8px;
+      padding: 2px 4px;
       margin: 0;
     }
   }

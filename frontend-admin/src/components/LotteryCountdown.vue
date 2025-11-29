@@ -122,40 +122,6 @@ const nextDrawTime = computed(() => {
   return time.split(' ')[1] || time
 })
 
-const progressPercentage = computed(() => {
-  if (!lotteryStatus.value) return 0
-  
-  // 使用服务器时间校准后的客户端时间
-  const now = Date.now() + serverTimeOffset.value
-  const closeTime = parseTimeString(lotteryStatus.value.currentCloseTime)
-  const drawTime = parseTimeString(lotteryStatus.value.currentDrawTime)
-  
-  // 计算总开盘时长和总封盘时长
-  const totalOpenTime = closeTime - (drawTime - 210000) // 210秒前是上次开奖
-  const totalCloseTime = drawTime - closeTime
-  
-  // 如果封盘时间还没到，显示开盘进度
-  if (now < closeTime) {
-    const elapsed = now - (drawTime - 210000)
-    return Math.min(100, Math.max(0, (elapsed / totalOpenTime) * 100))
-  }
-  
-  // 如果开奖时间还没到，显示封盘进度
-  if (now < drawTime) {
-    const elapsed = now - closeTime
-    return Math.min(100, Math.max(0, (elapsed / totalCloseTime) * 100))
-  }
-  
-  return 100
-})
-
-const progressColor = computed(() => {
-  const status = lotteryStatus.value?.status
-  if (status === 'closed') return '#f56c6c'
-  if (status === 'closing') return '#e6a23c'
-  return '#67c23a'
-})
-
 // 格式化时间（补零）
 const formatTime = (value: number): string => {
   return value.toString().padStart(2, '0')

@@ -26,10 +26,10 @@
           <span class="form-tip">开启后用户将无法访问系统</span>
         </el-form-item>
 
-        <el-form-item label="自动结算" prop="autoSettleEnabled">
+        <!-- <el-form-item label="自动结算" prop="autoSettleEnabled">
           <el-switch v-model="form.autoSettleEnabled" />
           <span class="form-tip">开启后系统将自动结算下注</span>
-        </el-form-item>
+        </el-form-item> -->
 
         <el-divider content-position="left">封盘时间设置</el-divider>
 

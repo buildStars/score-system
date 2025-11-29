@@ -2,16 +2,21 @@
   <div class="dashboard">
     <!-- 日期选择器 -->
     <el-card class="date-selector" shadow="hover">
-      <el-date-picker
-        v-model="dateRange"
-        type="daterange"
-        range-separator="至"
-        start-placeholder="开始日期"
-        end-placeholder="结束日期"
-        format="YYYY-MM-DD"
-        value-format="YYYY-MM-DD"
-        @change="fetchStatistics"
-      />
+      <div class="date-picker-wrapper">
+        <el-date-picker
+          v-model="dateRange"
+          type="datetimerange"
+          range-separator="至"
+          start-placeholder="开始时间"
+          end-placeholder="结束时间"
+          format="YYYY-MM-DD HH:mm"
+          value-format="YYYY-MM-DD HH:mm:ss"
+          @change="fetchStatistics"
+        />
+        <el-button type="primary" size="small" @click="resetToDefault">
+          重置为20点周期
+        </el-button>
+      </div>
     </el-card>
 
     <!-- 核心数据统计 -->
@@ -20,7 +25,7 @@
         <el-card shadow="hover">
           <div class="stat-item">
             <div class="stat-label">下注总额</div>
-            <div class="stat-value">¥{{ formatMoney(statistics?.summary.totalBetAmount || 0) }}</div>
+            <div class="stat-value">{{ formatMoney(statistics?.summary.totalBetAmount || 0) }}</div>
           </div>
         </el-card>
       </el-col>
@@ -29,7 +34,7 @@
         <el-card shadow="hover">
           <div class="stat-item">
             <div class="stat-label">手续费</div>
-            <div class="stat-value fee">¥{{ formatMoney(statistics?.summary.totalFee || 0) }}</div>
+            <div class="stat-value fee">{{ formatMoney(statistics?.summary.totalFee || 0) }}</div>
           </div>
         </el-card>
       </el-col>
@@ -39,7 +44,7 @@
           <div class="stat-item">
             <div class="stat-label">总盈亏</div>
             <div class="stat-value" :class="totalProfit >= 0 ? 'profit' : 'loss'">
-              {{ totalProfit >= 0 ? '+' : '' }}¥{{ formatMoney(totalProfit) }}
+              {{ totalProfit >= 0 ? '+' : '' }}{{ formatMoney(totalProfit) }}
             </div>
           </div>
         </el-card>
@@ -56,11 +61,32 @@ import { getStatistics } from '@/api/statistics'
 import { formatMoney } from '@/utils/format'
 import type { StatisticsData } from '@/types'
 
+// 计算默认时间范围（从20点开始的24小时）
+const getDefaultDateRange = (): [string, string] => {
+  const now = dayjs()
+  const currentHour = now.hour()
+  
+  let startTime: dayjs.Dayjs
+  let endTime: dayjs.Dayjs
+  
+  if (currentHour >= 20) {
+    // 当前时间 >= 今天20点：显示今天20:00 - 明天20:00
+    startTime = now.hour(20).minute(0).second(0)
+    endTime = now.add(1, 'day').hour(20).minute(0).second(0)
+  } else {
+    // 当前时间 < 今天20点：显示昨天20:00 - 今天20:00
+    startTime = now.subtract(1, 'day').hour(20).minute(0).second(0)
+    endTime = now.hour(20).minute(0).second(0)
+  }
+  
+  return [
+    startTime.format('YYYY-MM-DD HH:mm:ss'),
+    endTime.format('YYYY-MM-DD HH:mm:ss'),
+  ]
+}
+
 const loading = ref(false)
-const dateRange = ref<[string, string]>([
-  dayjs().subtract(7, 'day').format('YYYY-MM-DD'),
-  dayjs().format('YYYY-MM-DD'),
-])
+const dateRange = ref<[string, string]>(getDefaultDateRange())
 const statistics = ref<StatisticsData>()
 
 // 计算总盈亏（总赢 - 总输）
@@ -79,6 +105,10 @@ const fetchStatistics = async () => {
 
   try {
     loading.value = true
+    console.log('📊 查询统计数据:')
+    console.log('  开始时间:', dateRange.value[0])
+    console.log('  结束时间:', dateRange.value[1])
+    
     const res = await getStatistics({
       startDate: dateRange.value[0],
       endDate: dateRange.value[1],
@@ -91,7 +121,16 @@ const fetchStatistics = async () => {
   }
 }
 
+// 重置为20点周期
+const resetToDefault = () => {
+  dateRange.value = getDefaultDateRange()
+  fetchStatistics()
+  ElMessage.success('已重置为20点周期统计')
+}
+
 onMounted(() => {
+  console.log('🏠 Dashboard 初始化')
+  console.log('  默认时间范围:', dateRange.value)
   fetchStatistics()
 })
 </script>
@@ -100,6 +139,12 @@ onMounted(() => {
 .dashboard {
   .date-selector {
     margin-bottom: 20px;
+
+    .date-picker-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
   }
 
   .core-stats {
@@ -138,6 +183,17 @@ onMounted(() => {
 // 移动端适配
 @media (max-width: 768px) {
   .dashboard {
+    .date-selector {
+      .date-picker-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+
+        .el-button {
+          width: 100%;
+        }
+      }
+    }
+
     .core-stats {
       .stat-item {
         padding: 16px 0;

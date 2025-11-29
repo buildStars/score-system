@@ -9,7 +9,7 @@
     <div class="compact-info-bar">
       <div class="info-row">
         <span class="info-label">距 {{ formatIssue(lotteryStore.currentIssue) }} 期</span>
-        <span class="info-value">积分 {{ formatMoney(userStore.points) }}</span>
+        <span class="info-value">积分 {{ formatPoints(userStore.points) }}</span>
       </div>
       <!-- 倒计时行 -->
       <div v-if="lotteryStatus" class="countdown-row">
@@ -34,13 +34,20 @@
           <span class="num">{{ lotteryStore.lastResult.number2 }}</span>
           <span class="num">{{ lotteryStore.lastResult.number3 }}</span>
           <span class="num">{{ lotteryStore.lastResult.resultSum }}</span>
+          
+          <!-- 左边：大/小 -->
           <span :class="['tag', getSizeTagClass(lotteryStore.lastResult.sizeResult)]">
             {{ lotteryStore.lastResult.sizeResult }}
           </span>
+          
+          <!-- 中间：单/双 -->
           <span :class="['tag', getOddEvenTagClass(lotteryStore.lastResult.oddEvenResult)]">
             {{ lotteryStore.lastResult.oddEvenResult }}
           </span>
-          <span v-if="lotteryStore.lastResult.isReturn" class="tag tag-return">回</span>
+          
+          <!-- 右边：回本（不回本时占位但不显示）-->
+          <span v-if="lotteryStore.lastResult.isReturn === 1" class="tag tag-return">回</span>
+          <span v-else class="tag-placeholder"></span>
         </div>
       </div>
     </div>
@@ -207,7 +214,7 @@ import { useUserStore } from '@/stores/user'
 import { useLotteryStore } from '@/stores/lottery'
 import { userApi, getLotteryStatus, getBetTypeSettings } from '@/api'
 import { getCurrentIssueBets, cancelBet, type CurrentIssueBetsData } from '@/api/bet'
-import { formatMoney, formatIssue } from '@/utils/format'
+import { formatMoney, formatPoints, formatIssue } from '@/utils/format'
 import type { BetType } from '@/types/bet'
 import type { LotteryStatus } from '@/api/lottery'
 import type { BetTypeSetting } from '@/api/system'
@@ -233,13 +240,17 @@ const getBetTypeSetting = (betType: string): BetTypeSetting | null => {
 }
 
 // 辅助函数：根据下注内容获取对应的 betType
-const getBetTypeFromContent = (content: string): string => {
+const getBetTypeFromContent = (content: string): BetType => {
   if (content === '倍数') return 'multiple'
   if (content === '大') return 'big'
   if (content === '小') return 'small'
   if (content === '单') return 'odd'
   if (content === '双') return 'even'
-  if (['大单', '大双', '小单', '小双'].includes(content)) return 'combo'
+  // 组合下注映射为具体的 betType
+  if (content === '大单') return 'big_odd'
+  if (content === '大双') return 'big_even'
+  if (content === '小单') return 'small_odd'
+  if (content === '小双') return 'small_even'
   return 'big' // 默认
 }
 
@@ -319,32 +330,7 @@ const calculateMultipleAmount = () => {
   return formatMoney(total)
 }
 
-/**
- * 倍数变化时自动计算总金额
- */
-const onMultiplierChange = () => {
-  calculateMultipleAmount()
-}
 
-/**
- * 设置快捷倍数
- */
-const setQuickMultiplier = (mult: number) => {
-  multipleBet.multiplier = mult
-  calculateMultipleAmount()
-}
-
-/**
- * 设置快捷金额（组合下注用）
- */
-const setQuickAmount = (type: string, amount: number) => {
-  if (type === 'multiple') {
-    // 倍数下注已改为倍数选择，不再使用快捷金额
-    multipleBet.amount = String(amount)
-  } else {
-    comboBet.amount = String(amount)
-  }
-}
 
 /**
  * 精简版：选择下注选项
@@ -441,7 +427,7 @@ const onCompactSubmitBet = async () => {
 
   if (amount > userStore.points) {
     showToast({
-      message: `⚠️ 积分不足\n当前积分：${formatMoney(userStore.points)}\n需要积分：${formatMoney(amount)}`,
+      message: `⚠️ 积分不足\n当前积分：${formatPoints(userStore.points)}\n需要积分：${formatMoney(amount)}`,
       type: 'fail',
       duration: 2500,
     })
@@ -451,8 +437,8 @@ const onCompactSubmitBet = async () => {
   try {
     submitting.value = true
 
-    // 判断是倍数下注还是组合下注
-    const betType = selectedOption.value === '倍数' ? 'multiple' : 'combo'
+    // 使用 getBetTypeFromContent 获取正确的 betType
+    const betType = getBetTypeFromContent(selectedOption.value)
     const betContent = selectedOption.value === '倍数' ? String(amount) : selectedOption.value
 
     await userApi.submitBet({
@@ -724,7 +710,7 @@ const onSubmitBet = async (type: BetType) => {
 
   if (amount > userStore.points) {
     showToast({
-      message: `⚠️ 积分不足\n当前积分：${formatMoney(userStore.points)}\n需要积分：${formatMoney(amount)}`,
+      message: `⚠️ 积分不足\n当前积分：${formatPoints(userStore.points)}\n需要积分：${formatMoney(amount)}`,
       type: 'fail',
       duration: 2500,
     })
@@ -1169,25 +1155,48 @@ onUnmounted(() => {
       }
 
       .tag {
-        padding: 2px 8px;
-        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
         font-size: 12px;
-        font-weight: 500;
+        font-weight: 600;
+        color: #fff;
+        flex-shrink: 0; // 不缩小
 
-        &.tag-big, &.tag-small {
-          background: #e8f5e9;
-          color: #4caf50;
+        // 大 - 红色
+        &.tag-big {
+          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
         }
 
-        &.tag-odd, &.tag-even {
-          background: #e3f2fd;
-          color: #2196f3;
+        // 小 - 蓝色
+        &.tag-small {
+          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
         }
 
+        // 单 - 红色
+        &.tag-odd {
+          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+        }
+
+        // 双 - 蓝色
+        &.tag-even {
+          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        // 回本 - 绿色
         &.tag-return {
-          background: #fff3e0;
-          color: #ff9800;
+          background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
         }
+      }
+
+      // 占位符（不回本时占位）
+      .tag-placeholder {
+        width: 28px;
+        height: 28px;
+        flex-shrink: 0;
       }
     }
   }

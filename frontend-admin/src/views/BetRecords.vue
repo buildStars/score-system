@@ -61,7 +61,7 @@
       </div>
 
       <!-- 下注记录列表 -->
-      <el-table :data="betList" stripe v-loading="loading" style="margin-top: 20px">
+      <el-table :data="betList" stripe v-loading="loading" :style="{ marginTop: '20px' }">
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column label="用户" width="150">
           <template #default="{ row }">

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -111,6 +111,18 @@ export class UserController {
       admin.id,
       admin.username,
     );
+  }
+
+  @Delete('admin/users/:id')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @ApiOperation({ summary: '删除用户（管理员）' })
+  @ApiResponse({ status: 200, description: '删除成功' })
+  async deleteUser(
+    @Param('id', ParseIntPipe) userId: number,
+    @CurrentUser() admin: any,
+  ) {
+    return this.userService.deleteUser(userId, admin.id, admin.username);
   }
 }
 

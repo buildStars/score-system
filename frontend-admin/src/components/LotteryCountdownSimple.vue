@@ -4,8 +4,8 @@
       <div class="countdown-content">
         <!-- 期号 -->
         <div class="info-item">
-          <span class="label">当前期号</span>
-          <span class="value period">{{ currentPeriod }}</span>
+          <span class="label">{{ periodLabel }}</span>
+          <span class="value period">{{ nextPeriod }}</span>
         </div>
 
         <!-- 状态 -->
@@ -49,9 +49,11 @@ const localCountdown = ref(0) // 本地倒计时（秒）
 const serverTimeOffset = ref(0) // 服务器时间与本地时间的差值（毫秒）
 
 let timer: any = null
+let syncTimer: any = null // 定时同步定时器
 
 // 计算属性
 const currentPeriod = computed(() => lotteryStatus.value?.currentPeriod || '加载中...')
+const nextPeriod = computed(() => lotteryStatus.value?.nextPeriod || '')
 const isClosed = computed(() => lotteryStatus.value?.status === 'closed')
 const countdown = computed(() => {
   const total = Math.max(0, localCountdown.value)
@@ -80,6 +82,21 @@ const statusText = computed(() => {
   return '投注中'
 })
 
+const periodLabel = computed(() => {
+  if (!lotteryStatus.value) return '当前期号'
+  const now = dayjs().add(serverTimeOffset.value, 'millisecond')
+  const closeTime = dayjs(lotteryStatus.value.currentCloseTime)
+  const drawTime = dayjs(lotteryStatus.value.currentDrawTime)
+
+  if (now.isBefore(closeTime)) {
+    return '距封盘期号'
+  } else if (now.isBefore(drawTime)) {
+    return '距开奖期号'
+  } else {
+    return '正在开奖期号'
+  }
+})
+
 const countdownLabel = computed(() => {
   if (!lotteryStatus.value) return '加载中'
   const now = dayjs().add(serverTimeOffset.value, 'millisecond')
@@ -93,38 +110,6 @@ const countdownLabel = computed(() => {
   } else {
     return '正在开奖'
   }
-})
-
-const progressPercentage = computed(() => {
-  if (!lotteryStatus.value) return 0
-  const now = dayjs().add(serverTimeOffset.value, 'millisecond')
-  const closeTime = dayjs(lotteryStatus.value.currentCloseTime)
-  const drawTime = dayjs(lotteryStatus.value.currentDrawTime)
-  const drawInterval = 210 // 开奖间隔
-  const closeBeforeDraw = 30 // 封盘时间
-
-  let percentage = 0
-  if (now.isBefore(closeTime)) {
-    // 开放下注阶段
-    const totalOpenTime = drawInterval - closeBeforeDraw
-    const elapsedOpenTime = closeTime.diff(now, 'second')
-    percentage = ((totalOpenTime - elapsedOpenTime) / totalOpenTime) * 100
-  } else if (now.isBefore(drawTime)) {
-    // 封盘阶段
-    const totalCloseTime = closeBeforeDraw
-    const elapsedCloseTime = drawTime.diff(now, 'second')
-    percentage = ((totalCloseTime - elapsedCloseTime) / totalCloseTime) * 100
-  } else {
-    // 已开奖
-    percentage = 100
-  }
-  return Math.min(100, Math.max(0, percentage))
-})
-
-const progressColor = computed(() => {
-  const status = lotteryStatus.value?.status
-  if (status === 'closed') return '#f56c6c'
-  return '#67c23a'
 })
 
 // 格式化时间（补零）
@@ -161,6 +146,15 @@ const fetchLotteryStatus = async () => {
     }
     localCountdown.value = Math.max(0, calculatedCountdown)
     
+    // 检测期号变化
+    const oldPeriod = lotteryStatus.value?.currentPeriod
+    const newPeriod = newStatus.currentPeriod
+    
+    if (oldPeriod && oldPeriod !== newPeriod) {
+      console.log(`🎉 检测到新期号: ${oldPeriod} → ${newPeriod}`)
+      emits('draw', { period: oldPeriod, nextPeriod: newPeriod })
+    }
+    
     // 检测状态变化并触发事件
     const oldStatus = lotteryStatus.value?.status
     if (oldStatus !== newStatus.status) {
@@ -188,13 +182,23 @@ const updateLocalCountdown = () => {
   // 每秒递减
   localCountdown.value = Math.max(0, localCountdown.value - 1)
   
-  // 倒计时结束，重新同步服务器
+  // 倒计时结束，立即触发开奖事件并开始轮询
   if (localCountdown.value <= 0 && !wasZero) {
+    console.log('⏱️ 倒计时结束，立即触发开奖事件')
+    const currentPeriodValue = lotteryStatus.value?.currentPeriod
+    // 立即触发 draw 事件，让父组件开始轮询
+    emits('draw', { 
+      period: currentPeriodValue, 
+      nextPeriod: lotteryStatus.value?.nextPeriod,
+      isCountdownEnd: true 
+    })
+    // 同时启动本组件的轮询检测
     handleDrawComplete()
   }
   
-  // 每10秒校准一次（防止时间偏移）
-  if (localCountdown.value > 0 && localCountdown.value % 10 === 0) {
+  // 每15秒校准一次（防止时间偏移）
+  if (localCountdown.value > 0 && localCountdown.value % 15 === 0) {
+    console.log('🔄 每15秒校准一次')
     fetchLotteryStatus()
   }
 }
@@ -202,26 +206,31 @@ const updateLocalCountdown = () => {
 // 处理开奖完成
 const handleDrawComplete = async () => {
   const oldPeriod = lotteryStatus.value?.currentPeriod
+  console.log('🎲 开奖完成处理，当前期号:', oldPeriod)
   
   // 立即刷新获取最新状态
   await fetchLotteryStatus()
   
   let newPeriod = lotteryStatus.value?.currentPeriod
+  console.log('🔍 获取到期号:', newPeriod)
   
   if (newPeriod && oldPeriod !== newPeriod) {
-    emits('draw', { period: oldPeriod || '', nextPeriod: newPeriod })
+    console.log('✅ 期号已变化，触发 draw 事件')
+    // 期号变化已在 fetchLotteryStatus 中触发了 draw 事件，这里不需要重复触发
+    return
+  }
+  
+  // 如果期号未变化，延迟5秒后再次刷新
+  console.log('⏳ 期号未变化，5秒后重试...')
+  await sleep(5000)
+  await fetchLotteryStatus()
+  newPeriod = lotteryStatus.value?.currentPeriod
+  
+  if (newPeriod && oldPeriod !== newPeriod) {
+    console.log('✅ 延迟检测到期号变化')
+    // 期号变化已在 fetchLotteryStatus 中触发了 draw 事件
   } else {
-    // 延迟5秒后再次刷新，给后端同步时间
-    await sleep(5000)
-    await fetchLotteryStatus()
-    newPeriod = lotteryStatus.value?.currentPeriod
-    
-    if (newPeriod && oldPeriod !== newPeriod) {
-      emits('draw', { period: oldPeriod || '', nextPeriod: newPeriod })
-    } else {
-      // 即使没有获取到新期号，也触发一次刷新
-      emits('draw', { period: oldPeriod || '', nextPeriod: newPeriod || oldPeriod || '' })
-    }
+    console.log('⚠️ 仍未检测到新期号，等待下次同步')
   }
 }
 
@@ -235,20 +244,50 @@ const startCountdown = () => {
   timer = setInterval(updateLocalCountdown, 1000)
 }
 
+// 启动定时同步（每30秒强制同步服务器状态）
+const startSync = () => {
+  if (syncTimer) {
+    clearInterval(syncTimer)
+  }
+  syncTimer = setInterval(() => {
+    console.log('⏰ 定时同步服务器状态...')
+    fetchLotteryStatus()
+  }, 30000) // 30秒同步一次
+}
+
+// 监听页面可见性变化
+const handleVisibilityChange = () => {
+  if (!document.hidden) {
+    console.log('👁️ 页面变为可见，立即同步状态')
+    fetchLotteryStatus()
+  }
+}
+
 onMounted(async () => {
+  console.log('🚀 LotteryCountdownSimple 组件初始化')
   await fetchLotteryStatus()
   startCountdown()
+  startSync()
+  
+  // 添加页面可见性监听
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
   if (timer) {
     clearInterval(timer)
   }
+  if (syncTimer) {
+    clearInterval(syncTimer)
+  }
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
-// 暴露 currentPeriod 给父组件使用
+// 暴露给父组件使用
 defineExpose({
-  currentPeriod
+  currentPeriod,
+  nextPeriod,
+  fetchLotteryStatus, // 暴露刷新方法
 })
 </script>
 

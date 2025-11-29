@@ -29,7 +29,11 @@ export class UserService {
       throw new NotFoundException('用户不存在');
     }
 
-    return user;
+    // 积分返回整数
+    return {
+      ...user,
+      points: Math.floor(Number(user.points)),
+    };
   }
 
   /**
@@ -157,8 +161,14 @@ export class UserService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // 积分返回整数
+    const formattedList = list.map(user => ({
+      ...user,
+      points: Math.floor(Number(user.points)),
+    }));
+
     return {
-      list,
+      list: formattedList,
       total,
       page,
       limit,
@@ -194,6 +204,9 @@ export class UserService {
     // 向下取整，用户余额只存整数
     const newPoints = Math.floor(newPointsWithDecimal);
 
+    // 生成默认备注（如果未提供）
+    const finalRemark = remark || (amount > 0 ? '管理员上分' : '管理员下分');
+
     // 使用事务更新
     await this.prisma.$transaction(async (tx) => {
       // 更新用户积分（整数）
@@ -203,14 +216,16 @@ export class UserService {
       });
 
       // 记录积分变动（保留小数，显示详细变动）
+      const amountValue = Number(amount.toFixed(2));
+      
       await tx.pointRecord.create({
         data: {
           userId,
           type: amount > 0 ? 'admin_add' : 'admin_deduct',
-          amount,  // 保留小数
+          amount: amountValue,  // 保留两位小数的 number
           balanceBefore: currentPoints,  // 保留小数
           balanceAfter: newPoints,  // 向下取整后的值
-          remark,
+          remark: finalRemark,
           operatorId: adminId,
           operatorType: 'admin',
         },
@@ -233,9 +248,9 @@ export class UserService {
     return {
       userId,
       username: user.username,
-      pointsBefore: user.points,
-      pointsAfter: newPoints,
-      amount,
+      pointsBefore: Math.floor(Number(user.points)), // 积分返回整数
+      pointsAfter: newPoints, // 已经是向下取整后的整数
+      amount: amount.toFixed(2), // 调整金额保留两位小数
       remark,
     };
   }
@@ -320,6 +335,58 @@ export class UserService {
     });
 
     return { message: '用户状态更新成功' };
+  }
+
+  /**
+   * 删除用户（管理员）
+   */
+  async deleteUser(userId: number, adminId: number, adminUsername: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        nickname: true,
+        points: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    // 检查用户是否有未结算的下注
+    const pendingBets = await this.prisma.bet.count({
+      where: {
+        userId,
+        status: 'pending',
+      },
+    });
+
+    if (pendingBets > 0) {
+      throw new BadRequestException(`该用户还有 ${pendingBets} 条未结算的下注，无法删除`);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // 删除用户
+      await tx.user.delete({
+        where: { id: userId },
+      });
+
+      // 记录日志
+      await tx.adminLog.create({
+        data: {
+          adminId,
+          adminUsername,
+          action: 'delete_user',
+          resourceType: 'user',
+          resourceId: userId.toString(),
+          description: `删除用户: ${user.username} (ID: ${user.id}, 积分: ${user.points})`,
+        },
+      });
+    });
+
+    return { message: '用户删除成功' };
   }
 }
 

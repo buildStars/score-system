@@ -70,16 +70,39 @@ export class BetService {
       throw new BadRequestException('用户状态异常');
     }
 
-    // 6. 获取下注设置
-    const betSettings = await this.getBetSettings();
+    // 6. 获取当前下注类型的配置
+    const betTypeSetting = await this.prisma.betTypeSetting.findUnique({
+      where: { betType },
+    });
+
+    if (!betTypeSetting || !betTypeSetting.isEnabled) {
+      throw new BadRequestException('该下注类型暂不可用');
+    }
 
     // 7. 验证下注金额范围
-    if (amount < betSettings.minBetAmount) {
-      throw new BadRequestException(`下注金额不能少于${betSettings.minBetAmount}`);
+    if (amount < Number(betTypeSetting.minBet)) {
+      throw new BadRequestException(`下注金额不能少于${betTypeSetting.minBet}`);
     }
-    if (amount > betSettings.maxBetAmount) {
-      throw new BadRequestException(`下注金额不能超过${betSettings.maxBetAmount}`);
+    if (amount > Number(betTypeSetting.maxBet)) {
+      throw new BadRequestException(`下注金额不能超过${betTypeSetting.maxBet}`);
     }
+
+    // 8. 计算手续费（统一使用配置中的费率）
+    const feeRateRaw = Number(betTypeSetting.feeRate);
+    const feeRate = feeRateRaw * 100; // 转换为绝对值：0.03 -> 3
+    const feeCalculated = (amount / 100) * feeRate;
+    const fee = Number(feeCalculated.toFixed(2));
+    
+    // 调试日志
+    console.log(`💰 下注手续费计算: betType=${betType}, amount=${amount}`);
+    console.log(`  数据库 feeRate: ${betTypeSetting.feeRate}`);
+    console.log(`  转换后: ${feeRateRaw} * 100 = ${feeRate}`);
+    console.log(`  计算: (${amount} / 100) * ${feeRate} = ${feeCalculated}`);
+    console.log(`  toFixed(2): "${feeCalculated.toFixed(2)}"`);
+    console.log(`  Number(...): ${fee}`);
+
+    // 9. 获取通用下注设置（最大次数、损失率等）
+    const betSettings = await this.getBetSettings();
 
     // 8. 验证单期下注次数
     const betCount = await this.prisma.bet.count({
@@ -91,12 +114,14 @@ export class BetService {
     }
 
     // 9. 计算本次下注的最大可能损失（用于余额检查）
+    // 只有倍数下注使用 multipleFeeRate，其他所有类型使用 comboFeeRate
     const { minimumBalance: maxPossibleLoss, breakdown } = calculateMinimumBalance(
-      betType === 'multiple' ? 'multiple' : 'combo',
+      betType,
       amount,
       betContent,
       betType === 'multiple' ? betSettings.multipleFeeRate : betSettings.comboFeeRate,
       betType === 'multiple' ? betSettings.multipleFeeBase : betSettings.comboFeeBase,
+      betSettings.multipleLossRate,
     );
 
     // 10. 计算所有未结算注单的最大可能损失
@@ -113,16 +138,44 @@ export class BetService {
       },
     });
 
-    const pendingLoss = pendingBets.reduce((sum, bet) => {
-      const { minimumBalance: loss } = calculateMinimumBalance(
-        bet.betType === 'multiple' ? 'multiple' : 'combo',
-        bet.amount,
-        bet.betContent,
-        bet.betType === 'multiple' ? betSettings.multipleFeeRate : betSettings.comboFeeRate,
-        bet.betType === 'multiple' ? betSettings.multipleFeeBase : betSettings.comboFeeBase,
-      );
-      return sum + loss;
-    }, 0);
+    // 分类统计 pending 注单
+    let pendingLoss = 0;
+    const pendingMultiple: any[] = []; // 倍数下注
+    const pendingBigSmallOddEven: any[] = []; // 大小单双
+    const pendingCombo: any[] = []; // 组合下注（大单/大双/小单/小双）
+
+    pendingBets.forEach(bet => {
+      const isBigSmallOddEven = ['大', '小', '单', '双'].includes(bet.betContent);
+      
+      if (bet.betType === 'multiple') {
+        pendingMultiple.push(bet);
+      } else if (isBigSmallOddEven) {
+        pendingBigSmallOddEven.push(bet);
+      } else {
+        pendingCombo.push(bet);
+      }
+    });
+
+    // 1. 倍数下注：累加所有损失（倍数 × 损失率 + 手续费）
+    pendingMultiple.forEach(bet => {
+      const fee = Number(((bet.amount / betSettings.multipleFeeBase) * betSettings.multipleFeeRate).toFixed(2));
+      const loss = bet.amount * betSettings.multipleLossRate + fee;
+      pendingLoss += loss;
+    });
+
+    // 2. 大小单双：累加所有本金
+    pendingBigSmallOddEven.forEach(bet => {
+      pendingLoss += bet.amount;
+    });
+
+    // 3. 组合下注：最大本金 × 5 + 所有手续费
+    if (pendingCombo.length > 0) {
+      const maxComboAmount = Math.max(...pendingCombo.map(b => b.amount));
+      const comboTotalFee = pendingCombo.reduce((sum, bet) => {
+        return sum + Number(((bet.amount / betSettings.comboFeeBase) * betSettings.comboFeeRate).toFixed(2));
+      }, 0);
+      pendingLoss += maxComboAmount * 5 + comboTotalFee;
+    }
 
     // 11. 检查可用余额是否足够
     const currentPoints = Number(user.points);
@@ -137,22 +190,11 @@ export class BetService {
       );
     }
 
-    // 12. 计算手续费（记录但不在下注时扣除）
-    const isBigSmallOddEven = ['大', '小', '单', '双'].includes(betContent);
-    let fee = 0;
-    
-    if (betType === 'multiple') {
-      // 倍数下注：每 100 倍数 = 3 分手续费
-      fee = Math.floor((amount / betSettings.multipleFeeBase) * betSettings.multipleFeeRate);
-    } else if (!isBigSmallOddEven) {
-      // 组合下注（非大小单双）：每 100 本金 = 5 分手续费
-      fee = Math.floor((amount / betSettings.comboFeeBase) * betSettings.comboFeeRate);
-    }
-    // 大小单双：手续费 = 0（不单独收手续费）
-
-    // 13. 使用事务创建下注记录（不扣分）
+    // 12. 使用事务创建下注记录（不扣分）
     return await this.prisma.$transaction(async (tx) => {
       // 创建下注记录（不扣除积分，只记录）
+      console.log(`💾 准备存储到数据库: fee = ${fee} (${typeof fee})`);
+      
       const bet = await tx.bet.create({
         data: {
           userId,
@@ -160,11 +202,13 @@ export class BetService {
           betType,
           betContent,
           amount,
-          fee,
+          fee: fee, // Prisma 会自动转换为 Decimal
           pointsBefore: currentPoints,  // 记录下注时的积分
           status: 'pending',
         },
       });
+      
+      console.log(`✅ 已存储到数据库: bet.id=${bet.id}, fee=${bet.fee}`);
 
       // 注意：下注时不创建 PointRecord，只在结算时创建
 
@@ -173,11 +217,11 @@ export class BetService {
         issue: bet.issue,
         betType: bet.betType,
         betContent: bet.betContent,
-        amount: bet.amount,
-        fee: bet.fee,
-        pointsBefore: Number(bet.pointsBefore),
-        availableBalance: Math.floor(availableBalance - maxPossibleLoss), // 下注后的可用余额
-        lockedAmount: Math.floor(pendingLoss + maxPossibleLoss), // 锁定金额
+        amount: Number(bet.amount).toFixed(2), // 下注金额保留两位小数
+        fee: Number(bet.fee).toFixed(2), // 手续费保留两位小数
+        pointsBefore: Math.floor(Number(bet.pointsBefore)), // 积分返回整数
+        availableBalance: Math.floor(availableBalance - maxPossibleLoss), // 可用余额返回整数
+        lockedAmount: Math.floor(pendingLoss + maxPossibleLoss), // 锁定金额返回整数
         status: bet.status,
         createdAt: bet.createdAt,
       };
@@ -223,7 +267,7 @@ export class BetService {
     // 3. 对每个期号进行汇总
     const mergedBets = [];
     for (const [issueKey, bets] of groupedByIssue.entries()) {
-      const merged = this.mergeBetsByIssue(bets);
+      const merged = await this.mergeBetsByIssue(bets);
       mergedBets.push(merged);
     }
 
@@ -251,10 +295,15 @@ export class BetService {
     });
 
     const lotteryMap = new Map(lotteryResults.map(l => [l.issue, l]));
-    const listWithLottery = paginatedBets.map(bet => ({
-      ...bet,
-      lottery: lotteryMap.get(bet.issue) || null,
-    }));
+    const listWithLottery = paginatedBets.map(bet => {
+      // 调试日志
+      console.log(`📋 返回下注记录: issue=${bet.issue}, amount=${bet.amount}, fee=${bet.fee}, betCount=${bet.betCount}`);
+      
+      return {
+        ...bet,
+        lottery: lotteryMap.get(bet.issue) || null,
+      };
+    });
 
     return {
       list: listWithLottery,
@@ -267,106 +316,128 @@ export class BetService {
 
   /**
    * 合并同一期的多个下注记录
-   * 注意：只合并已结算的记录（win/loss），排除 cancelled 和 pending
+   * 支持合并 pending、win、loss 状态的记录，排除 cancelled
    */
-  private mergeBetsByIssue(bets: any[]): any {
+  private async mergeBetsByIssue(bets: any[]): Promise<any> {
     if (bets.length === 0) return null;
     
-    // 🔧 修复：只合并已结算的记录，排除 cancelled
-    const settledBets = bets.filter(b => b.status === 'win' || b.status === 'loss');
+    // 排除已取消的记录
+    const validBets = bets.filter(b => b.status !== 'cancelled');
     
-    // 如果没有已结算的记录，检查是否有 pending 或 cancelled
-    if (settledBets.length === 0) {
-      // 如果只有一条记录（无论什么状态），直接返回
-      if (bets.length === 1) return bets[0];
-      
-      // 如果有多条 pending/cancelled，只返回第一条（避免显示混乱）
-      return bets[0];
-    }
-    
-    // 如果只有一条已结算的记录，直接返回
-    if (settledBets.length === 1) return settledBets[0];
+    if (validBets.length === 0) return null;
+    if (validBets.length === 1) return validBets[0];
 
-    // 按类型分组（只处理已结算的）
-    const multipleBets = settledBets.filter(b => b.betType === 'multiple');
-    const comboBets = settledBets.filter(b => b.betType === 'combo');
+    // 按类型分组：倍数 vs 其他所有类型
+    const multipleBets = validBets.filter(b => b.betType === 'multiple');
+    const otherBets = validBets.filter(b => b.betType !== 'multiple'); // 所有非倍数的下注
 
-    // 汇总倍数下注
+    // 汇总倍数下注（累加 betContent，即倍数）
     let totalMultiple = 0;
     multipleBets.forEach(bet => {
       totalMultiple += Number(bet.betContent);
     });
 
-    // 汇总组合下注（按内容分组统计）
-    const comboMap = new Map<string, number>();
-    comboBets.forEach(bet => {
-      const content = bet.betContent;
+    // 汇总其他下注（大/小/单/双/组合等，按内容分组统计金额）
+    const otherBetsMap = new Map<string, number>();
+    otherBets.forEach(bet => {
+      const content = bet.betContent; // 如 "大"、"小"、"大单"
       const amount = Number(bet.amount);
-      comboMap.set(content, (comboMap.get(content) || 0) + amount);
+      otherBetsMap.set(content, (otherBetsMap.get(content) || 0) + amount);
     });
 
     // 构建合并后的下注内容
     let mergedContent = '';
+    
+    // 1. 先显示倍数
     if (totalMultiple > 0) {
-      mergedContent += `${totalMultiple}`;
+      mergedContent += `${totalMultiple}倍`;
     }
-    if (comboMap.size > 0) {
-      const comboStr = Array.from(comboMap.entries())
+    
+    // 2. 再显示其他类型下注
+    if (otherBetsMap.size > 0) {
+      const otherStr = Array.from(otherBetsMap.entries())
         .map(([content, amount]) => `${amount}${content}`)
         .join(' ');
-      mergedContent += (mergedContent ? ' ' : '') + comboStr;
+      mergedContent += (mergedContent ? ' ' : '') + otherStr;
     }
 
-    // 汇总金额（只统计已结算的）
-    const totalAmount = settledBets.reduce((sum, bet) => sum + Number(bet.amount), 0);
-    const totalFee = settledBets.reduce((sum, bet) => sum + Number(bet.fee), 0);
+    // 获取 bet_type_settings 配置用于重新计算手续费
+    const betTypeSettings = await this.prisma.betTypeSetting.findMany();
+    const betTypeMap = new Map(betTypeSettings.map(s => [s.betType, s]));
     
-    // 汇总结果金额（只统计已结算的）
-    const totalResultAmount = settledBets.reduce((sum, bet) => {
+    // 汇总金额（重新计算手续费，避免使用数据库中可能向下取整的旧值）
+    const totalAmount = validBets.reduce((sum, bet) => sum + Number(bet.amount), 0);
+    const totalFee = validBets.reduce((sum, bet) => {
+      // 重新计算每笔的手续费
+      const setting = betTypeMap.get(bet.betType);
+      const feeRate = setting ? Number(setting.feeRate) * 100 : 0;
+      const calculatedFee = Number(((Number(bet.amount) / 100) * feeRate).toFixed(2));
+      return sum + calculatedFee;
+    }, 0);
+    
+    // 汇总结果金额（只有已结算的才有 resultAmount）
+    const totalResultAmount = validBets.reduce((sum, bet) => {
       return sum + (bet.resultAmount ? Number(bet.resultAmount) : 0);
     }, 0);
 
-    // 确定状态
+    // 确定合并后的状态
     let mergedStatus: string;
-    if (totalResultAmount > 0) {
-      mergedStatus = 'win';
-    } else if (totalResultAmount < 0) {
-      mergedStatus = 'loss';
+    const hasPending = validBets.some(b => b.status === 'pending');
+    const hasSettled = validBets.some(b => b.status === 'win' || b.status === 'loss');
+    
+    if (hasPending && !hasSettled) {
+      // 全部是 pending
+      mergedStatus = 'pending';
+    } else if (!hasPending && hasSettled) {
+      // 全部已结算
+      if (totalResultAmount > 0) {
+        mergedStatus = 'win';
+      } else if (totalResultAmount < 0) {
+        mergedStatus = 'loss';
+      } else {
+        mergedStatus = 'win'; // resultAmount = 0，例如回本
+      }
     } else {
-      // resultAmount = 0 的情况（例如命中且回本）
-      mergedStatus = 'win';
+      // 混合状态（部分 pending 部分已结算），显示为 pending
+      mergedStatus = 'pending';
     }
 
-    // 取最早的下注时间和最晚的结算时间
-    const earliestBet = settledBets.reduce((earliest, bet) => 
+    // 取最早的下注时间
+    const earliestBet = validBets.reduce((earliest, bet) => 
       new Date(bet.createdAt) < new Date(earliest.createdAt) ? bet : earliest
     );
-    const latestSettled = settledBets.reduce((latest, bet) => 
-      bet.settledAt && (!latest.settledAt || new Date(bet.settledAt) > new Date(latest.settledAt)) ? bet : latest
-    );
+    
+    // 取最晚的结算时间（如果有的话）
+    const settledBets = validBets.filter(b => b.settledAt);
+    const latestSettled = settledBets.length > 0 
+      ? settledBets.reduce((latest, bet) => 
+          new Date(bet.settledAt) > new Date(latest.settledAt) ? bet : latest
+        )
+      : null;
 
-    // 🔧 修复：使用第一条记录的 pointsBefore 和最后一条结算记录的 pointsAfter
+    // 使用第一条记录的 pointsBefore 和最后一条结算记录的 pointsAfter
     const firstPointsBefore = earliestBet.pointsBefore;
-    const lastPointsAfter = latestSettled.pointsAfter;
+    const lastPointsAfter = latestSettled?.pointsAfter || null;
 
     // 返回合并后的记录
     return {
-      id: settledBets[0].id, // 使用第一条已结算记录的ID
-      userId: settledBets[0].userId,
-      issue: settledBets[0].issue,
-      betType: multipleBets.length > 0 && comboBets.length > 0 ? 'mixed' : 
+      id: validBets[0].id,
+      userId: validBets[0].userId,
+      user: validBets[0].user, // 保留用户信息
+      issue: validBets[0].issue,
+      betType: multipleBets.length > 0 && otherBets.length > 0 ? 'mixed' : 
                multipleBets.length > 0 ? 'multiple' : 'combo',
       betContent: mergedContent,
-      amount: totalAmount.toString(),
-      fee: totalFee.toString(),
+      amount: totalAmount.toFixed(2), // 下注金额保留两位小数
+      fee: totalFee.toFixed(2), // 手续费保留两位小数
       status: mergedStatus,
-      resultAmount: totalResultAmount.toString(),
-      pointsBefore: firstPointsBefore,
-      pointsAfter: lastPointsAfter,
-      settledAt: latestSettled.settledAt,
+      resultAmount: totalResultAmount !== 0 ? totalResultAmount.toFixed(2) : null, // 结算金额保留两位小数
+      pointsBefore: firstPointsBefore ? Math.floor(Number(firstPointsBefore)) : null, // 积分返回整数
+      pointsAfter: lastPointsAfter ? Math.floor(Number(lastPointsAfter)) : null, // 积分返回整数
+      settledAt: latestSettled?.settledAt || null,
       createdAt: earliestBet.createdAt,
-      updatedAt: settledBets[settledBets.length - 1].updatedAt,
-      betCount: settledBets.length, // 额外字段：已结算的下注次数（排除cancelled）
+      updatedAt: validBets[validBets.length - 1].updatedAt,
+      betCount: validBets.length,
     };
   }
 
@@ -489,8 +560,8 @@ export class BetService {
 
     return {
       totalBets: result._count.id,
-      totalAmount: Number(result._sum.amount || 0),
-      totalFee: Number(result._sum.fee || 0),
+      totalAmount: Number(result._sum.amount || 0).toFixed(2),
+      totalFee: Number(result._sum.fee || 0).toFixed(2),
       winCount,
       lossCount,
       pendingCount,
@@ -498,28 +569,47 @@ export class BetService {
   }
 
   /**
-   * 获取下注设置
+   * 获取下注设置（从 bet_type_settings 表）
    */
   private async getBetSettings() {
-    const settings = await this.prisma.betSetting.findMany();
-    const settingsMap: any = {};
+    // 从 bet_type_settings 表获取配置
+    const betTypeSettings = await this.prisma.betTypeSetting.findMany();
     
-    settings.forEach((setting) => {
-      const value = setting.valueType === 'number' 
-        ? parseFloat(setting.settingValue) 
-        : setting.settingValue;
-      settingsMap[setting.settingKey.replace(/_./g, (m) => m[1].toUpperCase())] = value;
+    // 将数组转换为对象映射
+    const settingsMap: any = {};
+    betTypeSettings.forEach((setting) => {
+      settingsMap[setting.betType] = {
+        minBet: Number(setting.minBet),
+        maxBet: Number(setting.maxBet),
+        feeRate: Number(setting.feeRate),
+        isEnabled: setting.isEnabled,
+      };
     });
 
+    // 获取倍数下注配置
+    const multipleConfig = settingsMap['multiple'] || {};
+    // 获取组合下注配置（大单/大双/小单/小双，使用"大单"作为代表）
+    const comboConfig = settingsMap['big_odd'] || settingsMap['combo'] || {};
+
+    // 注意：bet_type_settings 的 feeRate 是百分比小数（如 0.03 = 3%）
+    // 旧的计算方式是：fee = (amount / feeBase) * feeRate
+    // 为了兼容，我们转换为绝对值：
+    // 如果 feeRate = 0.03（3%），则 multipleFeeRate = 3, multipleFeeBase = 100
+    
     return {
-      multipleFeeRate: settingsMap.multipleFeeRate || 3,
-      multipleFeeBase: settingsMap.multipleFeeBase || 100,
-      comboFeeRate: settingsMap.comboFeeRate || 5,
-      comboFeeBase: settingsMap.comboFeeBase || 100,
-      minBetAmount: settingsMap.minBetAmount || 10,
-      maxBetAmount: settingsMap.maxBetAmount || 10000,
-      maxBetsPerIssue: settingsMap.maxBetsPerIssue || 10,
-      multipleLossRate: settingsMap.multipleLossRate || 0.8,
+      // 倍数下注配置
+      multipleFeeRate: (multipleConfig.feeRate || 0.03) * 100,  // 转换：0.03 -> 3
+      multipleFeeBase: 100,
+      minBetAmount: multipleConfig.minBet || 1,
+      maxBetAmount: multipleConfig.maxBet || 100000,
+      multipleLossRate: 0.8,  // 暂时保持0.8，后续可以加到配置中
+      
+      // 组合下注配置
+      comboFeeRate: (comboConfig.feeRate || 0.05) * 100,  // 转换：0.05 -> 5
+      comboFeeBase: 100,
+      
+      // 通用配置
+      maxBetsPerIssue: 50,  // 可以后续加到配置中
     };
   }
 
@@ -527,6 +617,10 @@ export class BetService {
    * 获取当前期的下注记录（按玩法合并）
    */
   async getCurrentIssueBets(userId: number) {
+    // 0. 获取所有下注类型配置（用于重新计算手续费）
+    const betTypeSettings = await this.prisma.betTypeSetting.findMany();
+    const betTypeMap = new Map(betTypeSettings.map(s => [s.betType, s]));
+    
     // 1. 获取当前期号
     const lotteryStatus = await this.countdownService.getLotteryStatus();
     let currentIssue = lotteryStatus.currentPeriod;
@@ -583,12 +677,21 @@ export class BetService {
       
       const group = groupedBets.get(key);
       group.totalAmount += Number(bet.amount);
-      group.totalFee += Number(bet.fee);
+      
+      // 重新计算手续费：统一从配置中读取费率
+      const setting = betTypeMap.get(bet.betType);
+      const feeRate = setting ? Number(setting.feeRate) * 100 : 0; // 转换：0.03 -> 3
+      const calculatedFee = Number(((Number(bet.amount) / 100) * feeRate).toFixed(2));
+      
+      group.totalFee += calculatedFee;
       group.betIds.push(bet.id);
     }
 
-    // 4. 转换为数组
-    const mergedBets = Array.from(groupedBets.values());
+    // 4. 转换为数组并格式化手续费（保留两位小数）
+    const mergedBets = Array.from(groupedBets.values()).map(bet => ({
+      ...bet,
+      totalFee: Number(bet.totalFee.toFixed(2)),
+    }));
 
     // 5. 检查是否可以取消（未封盘）
     const betCheck = await this.countdownService.canPlaceBet();
@@ -700,7 +803,7 @@ export class BetService {
    */
   async getBetSummary(issue?: string, userId?: number) {
     const where: any = {
-      status: { not: 'cancelled' }, // 排除已取消的下注
+      status: 'pending', // 只统计未结算的下注
     };
 
     // 按期号筛选（如果提供）- 只统计当前期号
@@ -724,7 +827,7 @@ export class BetService {
     });
 
     // 按类型汇总
-    const summary: Record<string, number> = {};
+    const summary: Record<string, string> = {};
     let totalMultiple = 0; // 累加所有倍数类型的金额
 
     for (const bet of bets) {
@@ -735,15 +838,15 @@ export class BetService {
         // 组合类型：按 betContent 分组累加
         const key = bet.betContent; // 如：大、小、单、双、大单、大双、小单、小双
         if (!summary[key]) {
-          summary[key] = 0;
+          summary[key] = '0.00';
         }
-        summary[key] += Number(bet.amount);
+        summary[key] = (Number(summary[key]) + Number(bet.amount)).toFixed(2);
       }
     }
 
     // 如果有倍数类型的下注，添加到结果中
     if (totalMultiple > 0) {
-      summary['multiple'] = totalMultiple;
+      summary['multiple'] = totalMultiple.toFixed(2);
     }
 
     return summary;
@@ -813,7 +916,7 @@ export class BetService {
     // 3. 对每个期号+用户组合进行合并（复用现有的合并逻辑）
     const mergedBets = [];
     for (const [key, bets] of groupedByIssueUser.entries()) {
-      const merged = this.mergeBetsByIssue(bets);
+      const merged = await this.mergeBetsByIssue(bets);
       if (merged) {
         mergedBets.push(merged);
       }

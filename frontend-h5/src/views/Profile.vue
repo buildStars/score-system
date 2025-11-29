@@ -18,7 +18,7 @@
         <div class="points-card card">
             <div class="points-item">
                 <div class="label">当前积分</div>
-                <div class="value primary">{{ userStore.points}}</div>
+                <div class="value primary">{{ formatPoints(userStore.points) }}</div>
             </div>
 
         </div>
@@ -75,7 +75,7 @@ import { useRouter } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
 import { useUserStore } from '@/stores/user'
 import { userApi } from '@/api'
-import { formatMoney } from '@/utils/format'
+import { formatPoints } from '@/utils/format'
 
 const router = useRouter()
 const userStore = useUserStore()

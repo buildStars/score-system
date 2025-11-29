@@ -79,11 +79,11 @@ export class AdminService {
         totalUsers,
         activeUsers,
         totalBets,
-        totalBetAmount,
-        totalFee,
-        totalWin,
-        totalLoss,
-        netProfit,
+        totalBetAmount: totalBetAmount.toFixed(2), // 下注总额保留两位小数
+        totalFee: totalFee.toFixed(2), // 手续费保留两位小数
+        totalWin: totalWin.toFixed(2), // 赢的结算金额保留两位小数
+        totalLoss: totalLoss.toFixed(2), // 输的结算金额保留两位小数
+        netProfit: netProfit.toFixed(2), // 净盈亏保留两位小数
       },
       dailyData,
       betTypeStats,

@@ -1,47 +1,58 @@
 import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
 import type { AdminInfo } from '@/types'
 
-interface AuthState {
+export interface AuthState {
   token: string | null
   admin: AdminInfo | null
 }
 
-export const useAuthStore = defineStore('auth', {
-  state: (): AuthState => ({
-    token: null,
-    admin: null,
-  }),
+export const useAuthStore = defineStore(
+  'auth',
+  () => {
+    // State
+    const token = ref<string | null>(null)
+    const admin = ref<AdminInfo | null>(null)
 
-  getters: {
-    isLoggedIn: (state) => !!state.token,
-    adminName: (state) => state.admin?.realName || state.admin?.username || '',
-  },
+    // Getters
+    const isLoggedIn = computed(() => !!token.value)
+    const adminName = computed(() => admin.value?.realName || admin.value?.username || '')
 
-  actions: {
+    // Actions
     /**
      * 设置认证信息
      */
-    setAuth(token: string, admin: AdminInfo) {
-      this.token = token
-      this.admin = admin
-    },
+    function setAuth(newToken: string, newAdmin: AdminInfo) {
+      token.value = newToken
+      admin.value = newAdmin
+    }
 
     /**
      * 清除认证信息
      */
-    clearAuth() {
-      this.token = null
-      this.admin = null
-    },
-  },
+    function clearAuth() {
+      token.value = null
+      admin.value = null
+    }
 
-  // 持久化配置
-  persist: {
-    key: 'auth',
-    storage: localStorage,
-    paths: ['token', 'admin'],
+    return {
+      token,
+      admin,
+      isLoggedIn,
+      adminName,
+      setAuth,
+      clearAuth,
+    }
   },
-})
+  {
+    // 持久化配置
+    persist: {
+      key: 'auth',
+      storage: localStorage,
+      paths: ['token', 'admin'],
+    },
+  }
+)
 
 
 
