@@ -19,3 +19,4 @@ INSERT INTO bet_type_settings (bet_type, name, odds, min_bet, max_bet, fee_rate,
 SELECT CONCAT('✅ 初始化完成，共 ', COUNT(*), ' 条数据') AS result FROM bet_type_settings;
 SELECT bet_type, name, description FROM bet_type_settings;
 
+

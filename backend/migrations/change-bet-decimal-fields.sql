@@ -17,3 +17,4 @@ COMMENT '结算金额（盈亏，保留两位小数）';
 -- - amount (下注金额/倍数) 保持为 INT 类型（整数）
 -- - 只有 fee 和 resultAmount 需要小数精度
 
+

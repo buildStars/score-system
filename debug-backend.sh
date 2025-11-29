@@ -34,3 +34,4 @@ ls -la /app/dist
 ls -la /app/dist/src 2>/dev/null || echo 'dist/src 不存在'
 "
 
+

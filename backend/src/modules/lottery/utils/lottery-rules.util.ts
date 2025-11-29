@@ -328,27 +328,36 @@ export function calculateMinimumBalance(
     };
   }
   
-  if (betType === 'combo') {
-    // 组合下注判断
-    const isBigSmallOddEven = ['大', '小', '单', '双'].includes(betContent || '');
-    
-    if (isBigSmallOddEven) {
-      // 大小单双：最低余额 = 本金
-      return {
-        minimumBalance: amount,
-        breakdown: `本金 ${amount}`,
-      };
-    } else {
-      // 组合（大单/大双/小单/小双）：最低余额 = 本金 × 5 + 手续费
-      const fee = Math.floor((amount / (feeBase || 100)) * (feeRate || 5));
-      const minimumBalance = amount * 5 + fee;
-      return {
-        minimumBalance,
-        breakdown: `本金 ${amount} × 5 + 手续费 ${fee} = ${minimumBalance}`,
-      };
-    }
+  // 判断是否为大小单双
+  const isBigSmallOddEven = betType === 'big' || betType === 'small' || 
+                            betType === 'odd' || betType === 'even' ||
+                            ['大', '小', '单', '双'].includes(betContent || '');
+  
+  if (isBigSmallOddEven) {
+    // 大小单双：最低余额 = 本金
+    return {
+      minimumBalance: amount,
+      breakdown: `本金 ${amount}`,
+    };
   }
   
+  // 判断是否为组合下注（大单/大双/小单/小双）
+  const isCombo = betType === 'big_odd' || betType === 'big_even' || 
+                  betType === 'small_odd' || betType === 'small_even' ||
+                  betType === 'combo' ||
+                  ['大单', '大双', '小单', '小双'].includes(betContent || '');
+  
+  if (isCombo) {
+    // 组合（大单/大双/小单/小双）：最低余额 = 本金 × 5 + 手续费
+    const fee = Math.floor((amount / (feeBase || 100)) * (feeRate || 5));
+    const minimumBalance = amount * 5 + fee;
+    return {
+      minimumBalance,
+      breakdown: `本金 ${amount} × 5 + 手续费 ${fee} = ${minimumBalance}`,
+    };
+  }
+  
+  // 默认：返回本金
   return {
     minimumBalance: amount,
     breakdown: `本金 ${amount}`,

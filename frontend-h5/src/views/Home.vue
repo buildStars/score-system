@@ -556,15 +556,27 @@ watch(showQuickAmountSetting, (show) => {
 /**
  * 加载当前期下注记录
  */
+let loadBetsErrorCount = 0 // 连续错误计数
 const loadCurrentIssueBets = async () => {
   try {
     const res = await getCurrentIssueBets()
     // res 是 ApiResponse<CurrentIssueBetsData> 类型
     // res.data 才是 CurrentIssueBetsData 类型
     currentIssueBets.value = res.data
+    loadBetsErrorCount = 0 // 成功后重置错误计数
   } catch (error) {
-    console.error('加载当前期下注失败：', error)
+    loadBetsErrorCount++
+    console.error(`加载当前期下注失败(${loadBetsErrorCount}次):`, error)
     currentIssueBets.value = null
+    
+    // 如果连续失败超过3次，显示提示（但不停止倒计时）
+    if (loadBetsErrorCount === 3) {
+      showToast({
+        message: '⚠️ 获取下注记录失败，请刷新页面重试',
+        type: 'fail',
+        duration: 3000,
+      })
+    }
   }
 }
 

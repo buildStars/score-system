@@ -37,3 +37,4 @@ ENV NODE_ENV=production
 # 启动命令
 CMD ["sh", "-c", "echo '=== Starting app ===' && ls -la dist/src/ && npx prisma migrate deploy && node dist/src/main.js"]
 
+

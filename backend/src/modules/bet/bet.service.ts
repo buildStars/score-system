@@ -268,7 +268,10 @@ export class BetService {
     const mergedBets = [];
     for (const [issueKey, bets] of groupedByIssue.entries()) {
       const merged = await this.mergeBetsByIssue(bets);
-      mergedBets.push(merged);
+      // 过滤掉 null 值（当该期号所有下注都被取消时）
+      if (merged) {
+        mergedBets.push(merged);
+      }
     }
 
     // 4. 按创建时间排序
