@@ -425,17 +425,18 @@ export class LotteryService {
       });
 
       // 更新下注记录（确保小数精度）
-      const resultAmountValue = Number(settlementAmount.toFixed(2));
-      const feeValue = Number(fee.toFixed(2));
+      // ⚠️ 使用 Prisma.Decimal 来确保精确存储小数
+      const resultAmountValue = settlementAmount.toFixed(2);  // 转为字符串保留精度
+      const feeValue = fee.toFixed(2);  // 转为字符串保留精度
       
-      console.log(`💾 结算存储: resultAmount=${resultAmountValue}, fee=${feeValue}`);
+      console.log(`💾 结算存储 (bet ${bet.id}): settlementAmount=${settlementAmount} -> resultAmount="${resultAmountValue}", fee=${fee} -> "${feeValue}"`);
       
       await tx.bet.update({
         where: { id: bet.id },
         data: {
           status,
-          resultAmount: resultAmountValue,  // 保留两位小数的 number
-          fee: feeValue,  // 保留两位小数的 number
+          resultAmount: resultAmountValue,  // 使用字符串，Prisma 会转为 Decimal
+          fee: feeValue,  // 使用字符串，Prisma 会转为 Decimal
           pointsAfter: finalPoints,
           settledAt: new Date(),
         },
@@ -446,7 +447,7 @@ export class LotteryService {
         data: {
           userId: bet.userId,
           type: status === 'win' ? 'win' : 'loss',
-          amount: resultAmountValue,  // 保留两位小数的 number
+          amount: resultAmountValue,  // 使用字符串，Prisma 会转为 Decimal
           balanceBefore: currentPoints,  // 结算前的当前积分（整数）
           balanceAfter: finalPoints,  // 结算后积分（整数）
           relatedId: bet.id,
