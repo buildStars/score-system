@@ -279,6 +279,12 @@ export class LotteryService {
 
     // 2. 获取下注设置
     const betSettings = await this.getBetSettings();
+    
+    // 2.1 获取所有下注类型配置（用于按类型获取准确费率）
+    const betTypeSettings = await this.prisma.betTypeSetting.findMany();
+    const betTypeSettingsMap = new Map(
+      betTypeSettings.map(s => [s.betType, s])
+    );
 
     // 3. 查询该期所有待结算的下注
     const pendingBets = await this.prisma.bet.findMany({
@@ -334,10 +340,16 @@ export class LotteryService {
 
     if (bet.betType === 'multiple') {
       // ⭐️ 倍数下注
+      // 根据具体的 betType 获取对应的费率配置
+      const betTypeSetting = betTypeSettingsMap.get('multiple');
+      const multipleFeeRate = betTypeSetting 
+        ? Number(betTypeSetting.feeRate) * 100  // 转换：0.0378 -> 3.78
+        : betSettings.multipleFeeRate;  // 兜底使用通用费率
+      
       const result = calculateMultipleBetResult(
         Number(bet.amount),
         isReturn,
-        betSettings.multipleFeeRate,
+        multipleFeeRate,  // 使用配置的费率
         betSettings.multipleFeeBase,
       );
       
@@ -360,12 +372,18 @@ export class LotteryService {
     } 
     else {
       // ⭐️ 组合下注（大单/大双/小单/小双）
+      // 根据具体的 betType 获取对应的费率配置
+      const betTypeSetting = betTypeSettingsMap.get(bet.betType);
+      const comboFeeRate = betTypeSetting 
+        ? Number(betTypeSetting.feeRate) * 100  // 转换：0.105 -> 10.5
+        : betSettings.comboFeeRate;  // 兜底使用通用费率
+      
       const result = calculateComboBetResult(
         Number(bet.amount),
         bet.betContent,
         lotteryResult.resultSum,
         isReturn,
-        betSettings.comboFeeRate,
+        comboFeeRate,  // 使用具体类型的费率
         betSettings.comboFeeBase,
       );
       

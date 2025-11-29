@@ -219,10 +219,12 @@ const formatSummaryValue = (value: number | string): string => {
   // 后端返回的可能是字符串，需要先转换为数字
   const numValue = typeof value === 'string' ? parseFloat(value) : value
   
+  // ⚠️ 注意：displaySummary 已经应用了除数，这里只需要格式化显示
   if (divideEnabled.value && divideNumber.value > 0) {
-    const divided = numValue / divideNumber.value
-    return divided.toFixed(2)
+    // 已经在 displaySummary 中除过了，这里直接格式化为2位小数
+    return numValue.toFixed(2)
   }
+  // 未启用除数时，显示整数
   return numValue.toFixed(0)
 }
 
