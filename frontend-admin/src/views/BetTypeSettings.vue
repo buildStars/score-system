@@ -16,13 +16,22 @@
         style="margin-bottom: 20px;"
       >
         <template #title>
-          说明：配置每种下注类型的赔率、投注限额、手续费和退水比例
+          说明：配置每种下注类型的名称、说明、赔率、投注限额和手续费
         </template>
       </el-alert>
 
       <div class="table-wrapper">
         <el-table :data="settingsList" border v-loading="loading" size="small">
-        <el-table-column prop="name" label="模式" width="80" />
+   
+        <el-table-column label="名称" width="100">
+          <template #default="{ row }">
+            <el-input
+              v-model="row.name"
+              placeholder="请输入"
+              size="small"
+            />
+          </template>
+        </el-table-column>
         
         <el-table-column label="赔率" width="100">
           <template #default="{ row }">
@@ -88,9 +97,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="说明" min-width="100">
+        <el-table-column label="说明" min-width="150">
           <template #default="{ row }">
-            <span style="font-size: 13px;">{{ row.description }}</span>
+            <el-input
+              v-model="row.description"
+              placeholder="请输入说明"
+              size="small"
+            />
           </template>
         </el-table-column>
 
@@ -115,6 +128,8 @@
             <div>
               <div>💡 配置说明：</div>
               <ul style="margin: 10px 0 0 20px; line-height: 1.8;">
+                <li><strong>名称：</strong>下注类型的显示名称（如"倍数"、"大"、"小"等）</li>
+                <li><strong>说明：</strong>下注规则的详细说明（如"总和≥14"、"总和为单数"等）</li>
                 <li><strong>赔率：</strong>中奖时的赔付倍数（如1.95表示投100赢195元）</li>
                 <li><strong>最小投注：</strong>单次下注的最小金额</li>
                 <li><strong>最大投注：</strong>单次下注的最大金额</li>
