@@ -84,13 +84,14 @@ const statusText = computed(() => {
 
 const periodLabel = computed(() => {
   if (!lotteryStatus.value) return '当前期号'
-  const now = dayjs().add(serverTimeOffset.value, 'millisecond')
-  const closeTime = dayjs(lotteryStatus.value.currentCloseTime)
-  const drawTime = dayjs(lotteryStatus.value.currentDrawTime)
+  // 使用毫秒级时间戳进行比较，与倒计时计算保持一致
+  const now = Date.now() + serverTimeOffset.value
+  const closeTime = dayjs(lotteryStatus.value.currentCloseTime).valueOf()
+  const drawTime = dayjs(lotteryStatus.value.currentDrawTime).valueOf()
 
-  if (now.isBefore(closeTime)) {
+  if (now < closeTime) {
     return '距封盘期号'
-  } else if (now.isBefore(drawTime)) {
+  } else if (now < drawTime) {
     return '距开奖期号'
   } else {
     return '正在开奖期号'
@@ -99,13 +100,14 @@ const periodLabel = computed(() => {
 
 const countdownLabel = computed(() => {
   if (!lotteryStatus.value) return '加载中'
-  const now = dayjs().add(serverTimeOffset.value, 'millisecond')
-  const closeTime = dayjs(lotteryStatus.value.currentCloseTime)
-  const drawTime = dayjs(lotteryStatus.value.currentDrawTime)
+  // 使用毫秒级时间戳进行比较，与倒计时计算保持一致
+  const now = Date.now() + serverTimeOffset.value
+  const closeTime = dayjs(lotteryStatus.value.currentCloseTime).valueOf()
+  const drawTime = dayjs(lotteryStatus.value.currentDrawTime).valueOf()
 
-  if (now.isBefore(closeTime)) {
+  if (now < closeTime) {
     return '距离封盘'
-  } else if (now.isBefore(drawTime)) {
+  } else if (now < drawTime) {
     return '距离开奖'
   } else {
     return '正在开奖'
@@ -132,15 +134,18 @@ const fetchLotteryStatus = async () => {
     serverTimeOffset.value = serverTime - clientRequestTime
     
     // 根据服务器返回的时间点计算本地倒计时
-    const now = dayjs().add(serverTimeOffset.value, 'millisecond')
-    const closeTime = dayjs(newStatus.currentCloseTime)
-    const drawTime = dayjs(newStatus.currentDrawTime)
+    // 使用毫秒级时间戳计算，并使用 Math.ceil 向上取整，避免倒计时快1秒
+    const now = Date.now() + serverTimeOffset.value
+    const closeTime = dayjs(newStatus.currentCloseTime).valueOf()
+    const drawTime = dayjs(newStatus.currentDrawTime).valueOf()
 
     let calculatedCountdown = 0
-    if (now.isBefore(closeTime)) {
-      calculatedCountdown = closeTime.diff(now, 'second')
-    } else if (now.isBefore(drawTime)) {
-      calculatedCountdown = drawTime.diff(now, 'second')
+    if (now < closeTime) {
+      // 使用 Math.ceil 向上取整，避免倒计时快1秒
+      calculatedCountdown = Math.ceil((closeTime - now) / 1000)
+    } else if (now < drawTime) {
+      // 使用 Math.ceil 向上取整，避免倒计时快1秒
+      calculatedCountdown = Math.ceil((drawTime - now) / 1000)
     } else {
       calculatedCountdown = 0 // 已经开奖，等待刷新
     }

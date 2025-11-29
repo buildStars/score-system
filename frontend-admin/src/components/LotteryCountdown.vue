@@ -151,12 +151,14 @@ const calculateCountdown = (): number => {
   
   // 如果封盘时间还没到，显示距离封盘的倒计时
   if (now < closeTime) {
-    return Math.max(0, Math.floor((closeTime - now) / 1000))
+    // 使用 Math.ceil 向上取整，避免倒计时快1秒
+    return Math.max(0, Math.ceil((closeTime - now) / 1000))
   }
   
   // 如果开奖时间还没到，显示距离开奖的倒计时
   if (now < drawTime) {
-    return Math.max(0, Math.floor((drawTime - now) / 1000))
+    // 使用 Math.ceil 向上取整，避免倒计时快1秒
+    return Math.max(0, Math.ceil((drawTime - now) / 1000))
   }
   
   // 开奖时间已过，返回0
