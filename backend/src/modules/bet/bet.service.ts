@@ -328,7 +328,20 @@ export class BetService {
     const validBets = bets.filter(b => b.status !== 'cancelled');
     
     if (validBets.length === 0) return null;
-    if (validBets.length === 1) return validBets[0];
+    
+    // ✅ 修复：单笔下注时也需要格式化数字字段，确保类型一致
+    if (validBets.length === 1) {
+      const bet = validBets[0];
+      return {
+        ...bet,
+        amount: Number(bet.amount).toFixed(2),
+        fee: Number(bet.fee).toFixed(2),
+        resultAmount: bet.resultAmount ? Number(bet.resultAmount).toFixed(2) : null,
+        pointsBefore: bet.pointsBefore ? Math.floor(Number(bet.pointsBefore)) : null,
+        pointsAfter: bet.pointsAfter ? Math.floor(Number(bet.pointsAfter)) : null,
+        betCount: 1,
+      };
+    }
 
     // 按类型分组：倍数 vs 其他所有类型
     const multipleBets = validBets.filter(b => b.betType === 'multiple');
