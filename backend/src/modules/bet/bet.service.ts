@@ -7,6 +7,7 @@ import {
   calculateMinimumBalance 
 } from '../lottery/utils/lottery-rules.util';
 import { LotteryCountdownService } from '../lottery/lottery-countdown.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class BetService {
@@ -193,9 +194,9 @@ export class BetService {
     // 12. 使用事务创建下注记录（不扣分）
     return await this.prisma.$transaction(async (tx) => {
       // 创建下注记录（不扣除积分，只记录）
-      // ⚠️ 使用字符串格式存储 fee，确保 Prisma Decimal 精度
-      const feeValue = fee.toFixed(2);  // 转为字符串保留精度
-      console.log(`💾 准备存储到数据库: fee = ${fee} -> "${feeValue}" (${typeof feeValue})`);
+      // ⚠️ 使用 Prisma.Decimal 确保精确存储
+      const feeDecimal = new Prisma.Decimal(fee.toFixed(2));
+      console.log(`💾 准备存储到数据库: fee = ${fee} -> Decimal("${fee.toFixed(2)}") (类型: Prisma.Decimal)`);
       
       const bet = await tx.bet.create({
         data: {
@@ -204,13 +205,13 @@ export class BetService {
           betType,
           betContent,
           amount,
-          fee: feeValue,  // 使用字符串，Prisma 会精确转为 Decimal
+          fee: feeDecimal,  // 使用 Prisma.Decimal
           pointsBefore: currentPoints,  // 记录下注时的积分
           status: 'pending',
         },
       });
       
-      console.log(`✅ 已存储到数据库: bet.id=${bet.id}, fee=${bet.fee}`);
+      console.log(`✅ 已存储到数据库: bet.id=${bet.id}, fee=${bet.fee} (类型: ${typeof bet.fee}, 原始值: ${JSON.stringify(bet.fee)})`);
 
       // 注意：下注时不创建 PointRecord，只在结算时创建
 

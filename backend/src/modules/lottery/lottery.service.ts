@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { QueryLotteryDto } from './dto/query-lottery.dto';
 import { CreateLotteryDto } from './dto/create-lottery.dto';
 import { UpdateLotteryDto } from './dto/update-lottery.dto';
+import { Prisma } from '@prisma/client';
 import {
   isReturn,
   getSizeResult,
@@ -426,17 +427,17 @@ export class LotteryService {
 
       // 更新下注记录（确保小数精度）
       // ⚠️ 使用 Prisma.Decimal 来确保精确存储小数
-      const resultAmountValue = settlementAmount.toFixed(2);  // 转为字符串保留精度
-      const feeValue = fee.toFixed(2);  // 转为字符串保留精度
+      const resultAmountDecimal = new Prisma.Decimal(settlementAmount.toFixed(2));
+      const feeDecimal = new Prisma.Decimal(fee.toFixed(2));
       
-      console.log(`💾 结算存储 (bet ${bet.id}): settlementAmount=${settlementAmount} -> resultAmount="${resultAmountValue}", fee=${fee} -> "${feeValue}"`);
+      console.log(`💾 结算存储 (bet ${bet.id}): settlementAmount=${settlementAmount} -> Decimal("${settlementAmount.toFixed(2)}"), fee=${fee} -> Decimal("${fee.toFixed(2)}")`);
       
       await tx.bet.update({
         where: { id: bet.id },
         data: {
           status,
-          resultAmount: resultAmountValue,  // 使用字符串，Prisma 会转为 Decimal
-          fee: feeValue,  // 使用字符串，Prisma 会转为 Decimal
+          resultAmount: resultAmountDecimal,  // 使用 Prisma.Decimal
+          fee: feeDecimal,  // 使用 Prisma.Decimal
           pointsAfter: finalPoints,
           settledAt: new Date(),
         },
@@ -447,7 +448,7 @@ export class LotteryService {
         data: {
           userId: bet.userId,
           type: status === 'win' ? 'win' : 'loss',
-          amount: resultAmountValue,  // 使用字符串，Prisma 会转为 Decimal
+          amount: resultAmountDecimal,  // 使用 Prisma.Decimal
           balanceBefore: currentPoints,  // 结算前的当前积分（整数）
           balanceAfter: finalPoints,  // 结算后积分（整数）
           relatedId: bet.id,

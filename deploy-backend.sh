@@ -17,7 +17,7 @@ echo "📁 当前目录: $(pwd)"
 # 2. 停止旧容器
 echo ""
 echo "⏹️  停止旧容器..."
-docker-compose down
+docker-compose down 
 
 # 3. 构建后端镜像
 echo ""
@@ -27,7 +27,7 @@ docker-compose build backend
 # 4. 启动后端服务
 echo ""
 echo "▶️  启动后端服务..."
-docker-compose up -d backend
+docker-compose up -d 
 
 # 5. 等待服务启动
 echo ""
