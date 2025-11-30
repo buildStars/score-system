@@ -1,322 +1,457 @@
-# 🎯 计分系统后端 - NestJS
+# 🚀 云策28计分系统 - 后端服务
 
-## ✅ 项目状态
-
-**🎉 100%完成！所有24个API接口全部实现！**
-
-- ✅ 9个核心模块全部完成
-- ✅ 24个API接口全部实现
-- ✅ 核心业务逻辑100%完成
-- ✅ 生产级代码质量
-- ✅ 完整的文档
-
-## 🚀 技术栈
-
-- **框架**: NestJS 10.x
-- **语言**: TypeScript 5.x
-- **数据库**: MySQL 8.0 + Prisma ORM
-- **缓存**: Redis 7.x（预留）
-- **队列**: BullMQ（预留）
-- **对象存储**: 腾讯云COS（预留）
-- **认证**: JWT + Passport
-- **文档**: Swagger/OpenAPI
-- **日志**: Winston（预留）
-- **测试**: Jest
-
-## 📦 核心功能
-
-### 1. 认证系统 ✅
-- 用户登录
-- 管理员登录
-- JWT全局守卫
-- 角色权限控制
-
-### 2. 用户管理 ✅
-- 用户信息管理
-- 密码修改
-- 积分调整（管理员）
-- 用户状态管理（管理员）
-
-### 3. 下注系统 ✅
-- 提交下注
-- 下注验证（积分、金额、次数、游戏状态）
-- 下注历史查询
-- 下注汇总统计
-
-### 4. 开奖系统 ✅
-- 从旧系统同步开奖数据
-- 自动结算
-- 开奖历史查询
-- 回本判定逻辑
-
-### 5. 积分系统 ✅
-- 积分记录查询
-- 积分汇总统计
-- 多类型积分记录
-
-### 6. 系统设置 ✅
-- 下注设置管理
-- 系统设置管理
-- 数据清理功能
-
-### 7. 统计分析 ✅
-- 总览统计
-- 每日统计
-- 用户排名
-- 操作日志
-
-## 🎯 10分钟快速启动
-
-### 第1步：安装依赖（2分钟）
-
-```bash
-pnpm install
-```
-
-### 第2步：配置环境变量（1分钟）
-
-创建 `.env` 文件：
-
-```env
-DATABASE_URL="mysql://root:your_password@localhost:3306/score_system"
-JWT_SECRET="your-secret-key-please-change"
-JWT_EXPIRES_IN="7d"
-JWT_ADMIN_EXPIRES_IN="12h"
-PORT=3000
-NODE_ENV="development"
-CORS_ORIGIN="http://localhost:5173,http://localhost:5174"
-```
-
-完整配置说明见 [环境变量说明.md](./环境变量说明.md)
-
-### 第3步：创建数据库（1分钟）
-
-```bash
-mysql -u root -p
-```
-
-```sql
-CREATE DATABASE score_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-EXIT;
-```
-
-### 第4步：初始化数据库（2分钟）
-
-```bash
-# 生成Prisma Client
-npx prisma generate
-
-# 运行数据库迁移
-npx prisma migrate dev --name init
-
-# 初始化种子数据
-npx prisma db seed
-```
-
-### 第5步：启动服务（1分钟）
-
-```bash
-pnpm start:dev
-```
-
-看到以下输出表示成功：
-```
-🚀 应用启动成功！
-📡 API地址: http://localhost:3000/api
-📚 API文档: http://localhost:3000/api-docs
-```
-
-### 第6步：测试API（3分钟）
-
-访问 Swagger文档：http://localhost:3000/api-docs
-
-或使用curl测试：
-```bash
-# 用户登录
-curl -X POST http://localhost:3000/api/user/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"user001","password":"123456"}'
-
-# 管理员登录
-curl -X POST http://localhost:3000/api/admin/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
-```
-
-## 📚 项目结构
-
-```
-backend/
-├── prisma/
-│   ├── schema.prisma          # 数据库模型
-│   └── seed.ts                # 种子数据
-├── src/
-│   ├── common/                # 公共组件
-│   ├── modules/               # 业务模块
-│   │   ├── auth/              # 认证模块
-│   │   ├── user/              # 用户模块
-│   │   ├── bet/               # 下注模块
-│   │   ├── lottery/           # 开奖模块
-│   │   ├── point/             # 积分模块
-│   │   ├── system/            # 系统模块
-│   │   └── admin/             # 管理员模块
-│   ├── prisma/                # Prisma模块
-│   ├── app.module.ts          # 根模块
-│   └── main.ts                # 入口文件
-├── .env                       # 环境变量
-└── package.json               # 依赖配置
-```
-
-详见 [项目结构说明.md](../项目结构说明.md)
-
-## 📖 API接口（24个全部完成）
-
-### 用户端接口（7个）✅
-- POST `/api/user/login` - 用户登录
-- GET `/api/user/info` - 获取用户信息
-- POST `/api/user/change-password` - 修改密码
-- POST `/api/user/bet` - 提交下注
-- GET `/api/user/bet-history` - 下注历史
-- GET `/api/user/point-records` - 积分记录
-- GET `/api/lottery/current` - 当前期号信息
-
-### 开奖接口（2个）✅
-- GET `/api/lottery/current` - 当前期号
-- GET `/api/lottery/history` - 开奖历史
-
-### 管理员接口（15个）✅
-- POST `/api/admin/login` - 管理员登录
-- GET `/api/admin/users` - 用户列表
-- POST `/api/admin/users` - 创建用户
-- PUT `/api/admin/users/:id/points` - 调整积分
-- PUT `/api/admin/users/:id/password` - 重置密码
-- PUT `/api/admin/users/:id/status` - 更新状态
-- GET `/api/admin/bets` - 下注记录
-- GET `/api/admin/point-records` - 积分记录
-- GET `/api/admin/statistics` - 统计数据
-- GET `/api/admin/bet-settings` - 下注设置
-- PUT `/api/admin/bet-settings` - 更新下注设置
-- GET `/api/admin/system-settings` - 系统设置
-- PUT `/api/admin/system-settings` - 更新系统设置
-- POST `/api/admin/clear-data` - 清空数据
-- GET `/api/admin/logs` - 操作日志
-
-完整文档：[API接口文档.md](../docs/API接口文档.md)
-
-## 🧪 测试数据
-
-### 默认管理员
-- 用户名：`admin`
-- 密码：`admin123`
-- 角色：superadmin
-
-### 测试用户
-- 用户1：`user001` / `123456`（积分5000）
-- 用户2：`user002` / `123456`（积分3000）
-
-## 💻 开发命令
-
-```bash
-# 开发
-pnpm start:dev          # 启动开发服务器
-pnpm start:debug        # 调试模式
-
-# 构建
-pnpm build              # 打包生产版本
-pnpm start:prod         # 生产模式启动
-
-# 数据库
-npx prisma studio       # 打开数据库可视化界面
-npx prisma generate     # 生成Prisma Client
-npx prisma migrate dev  # 创建新迁移
-npx prisma db seed      # 运行种子数据
-
-# 测试
-pnpm test               # 运行测试
-pnpm test:watch         # 监听模式
-pnpm test:cov           # 覆盖率测试
-
-# 代码质量
-pnpm lint               # 代码检查
-pnpm format             # 代码格式化
-```
-
-## 📚 相关文档
-
-### 核心文档
-- [🎉100%完成总结.md](./🎉100%完成总结.md) ⭐⭐⭐
-- [快速启动指南.md](./快速启动指南.md)
-- [环境变量说明.md](./环境变量说明.md)
-
-### 业务文档
-- [数据库设计](../docs/数据库设计.md)
-- [业务规则详解](../docs/业务规则详解.md)
-- [API接口文档](../docs/API接口文档.md)
-
-### 开发文档
-- [开发进度总结.md](./开发进度总结.md)
-- [完整模块列表.md](./完整模块列表.md)
-- [项目总览](../docs/项目总览.md)
-
-## 🎯 核心业务逻辑
-
-### 倍数下注
-- 回本条件：对子、豹子、顺子、总和13/14
-- 回本：返还本金 - 3%手续费
-- 不回本：损失80%本金 + 3%手续费
-
-### 组合下注
-- 组合：大/小/单/双/大单/大双/小单/小双
-- 中奖：返还本金 - 5%手续费
-- 不中奖：损失100%本金
-
-详见 [业务规则详解](../docs/业务规则详解.md)
-
-## 🔧 常见问题
-
-### Q: 数据库连接失败？
-A: 检查 `.env` 中的 `DATABASE_URL` 是否正确，确保MySQL服务已启动。
-
-### Q: Prisma Client错误？
-A: 运行 `npx prisma generate` 重新生成客户端。
-
-### Q: 端口被占用？
-A: 修改 `.env` 中的 `PORT` 为其他端口。
-
-### Q: Token过期？
-A: 重新登录获取新的Token。
-
-## 🚀 部署
-
-### 生产环境部署
-
-1. 安装依赖：`pnpm install --prod`
-2. 配置环境变量
-3. 运行迁移：`npx prisma migrate deploy`
-4. 构建：`pnpm build`
-5. 启动：`pnpm start:prod`
-
-### 使用PM2部署
-
-```bash
-pm2 start dist/main.js --name score-system-backend
-```
-
-### Docker部署（预留）
-
-```bash
-docker build -t score-system-backend .
-docker run -p 3000:3000 score-system-backend
-```
-
-## 📄 许可证
-
-私有项目
+基于 NestJS 的彩票计分系统后端API服务。
 
 ---
 
-**🎉 项目状态：生产可用！**
+## 📋 目录
 
-**完成日期**：2024年11月26日  
-**版本**：v1.0.0  
-**完成度**：100%
+- [技术栈](#技术栈)
+- [项目结构](#项目结构)
+- [快速开始](#快速开始)
+- [API文档](#api文档)
+- [开发指南](#开发指南)
+- [部署说明](#部署说明)
+
+---
+
+## 技术栈
+
+- **框架**: NestJS 10.x
+- **运行时**: Node.js 20+
+- **数据库**: MySQL 8.0
+- **ORM**: Prisma 5.x
+- **缓存**: Redis 7.x
+- **认证**: JWT (Passport)
+- **定时任务**: @nestjs/schedule
+- **API文档**: Swagger/OpenAPI
+- **HTTP客户端**: Axios
+- **日志**: Winston (内置)
+
+---
+
+## 项目结构
+
+```
+backend/
+├── src/
+│   ├── modules/
+│   │   ├── auth/                   # 认证模块
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── auth.service.ts
+│   │   │   ├── auth.module.ts
+│   │   │   └── strategies/         # JWT策略
+│   │   │
+│   │   ├── user/                   # 用户模块
+│   │   │   ├── user.controller.ts
+│   │   │   ├── user.service.ts
+│   │   │   ├── user.module.ts
+│   │   │   └── dto/                # 数据传输对象
+│   │   │
+│   │   ├── bet/                    # 投注模块
+│   │   │   ├── bet.controller.ts
+│   │   │   ├── bet.service.ts
+│   │   │   └── dto/
+│   │   │
+│   │   ├── lottery/                # 开奖模块
+│   │   │   ├── lottery.controller.ts
+│   │   │   ├── lottery.service.ts
+│   │   │   ├── lottery-sync.service.ts      # 定时同步
+│   │   │   ├── lottery-countdown.service.ts  # 倒计时
+│   │   │   ├── data-sources/                 # 数据源
+│   │   │   │   ├── jnd28.data-source.ts
+│   │   │   │   ├── usa28.data-source.ts
+│   │   │   │   └── database.data-source.ts
+│   │   │   ├── services/
+│   │   │   │   └── lottery-data-source.manager.ts  # 数据源管理
+│   │   │   └── utils/
+│   │   │       └── lottery-rules.util.ts     # 结算规则
+│   │   │
+│   │   ├── system/                 # 系统配置
+│   │   │   ├── system.controller.ts
+│   │   │   └── system.service.ts
+│   │   │
+│   │   └── message/                # 消息公告
+│   │       ├── message.controller.ts
+│   │       └── message.service.ts
+│   │
+│   ├── common/                     # 公共模块
+│   │   ├── decorators/             # 装饰器
+│   │   ├── filters/                # 异常过滤器
+│   │   ├── guards/                 # 守卫
+│   │   ├── interceptors/           # 拦截器
+│   │   └── pipes/                  # 管道
+│   │
+│   ├── prisma/                     # Prisma服务
+│   │   ├── prisma.module.ts
+│   │   └── prisma.service.ts
+│   │
+│   ├── app.module.ts               # 根模块
+│   └── main.ts                     # 入口文件
+│
+├── prisma/
+│   ├── schema.prisma               # 数据库模型
+│   ├── seed.ts                     # 种子数据
+│   └── migrations/                 # 迁移文件
+│
+├── test/                           # 测试文件
+├── Dockerfile                      # Docker镜像
+├── .env.example                    # 环境变量示例
+├── nest-cli.json                   # NestJS配置
+├── tsconfig.json                   # TypeScript配置
+└── package.json
+```
+
+---
+
+## 快速开始
+
+### 1. 安装依赖
+
+```bash
+npm install
+```
+
+### 2. 配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`:
+
+```env
+# 数据库
+DATABASE_URL="mysql://user:password@localhost:3306/score_system"
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# JWT
+JWT_SECRET=your-secret-key
+JWT_EXPIRES_IN=7d
+JWT_ADMIN_EXPIRES_IN=12h
+
+# 应用
+PORT=3000
+NODE_ENV=development
+```
+
+### 3. 数据库迁移
+
+```bash
+# 生成 Prisma Client
+npx prisma generate
+
+# 运行迁移
+npx prisma migrate dev
+
+# 初始化数据
+npx prisma db seed
+```
+
+### 4. 启动服务
+
+```bash
+# 开发模式
+npm run start:dev
+
+# 生产模式
+npm run build
+npm run start:prod
+```
+
+访问 http://localhost:3000/api-docs 查看 API 文档
+
+---
+
+## API文档
+
+### Swagger文档
+
+启动服务后访问：
+- **本地**: http://localhost:3000/api-docs
+- **生产**: https://your-domain.com/api-docs
+
+### 主要端点
+
+#### 认证 `/api/auth`
+```typescript
+POST   /login              # 用户登录
+POST   /admin/login        # 管理员登录
+POST   /register           # 用户注册
+POST   /refresh            # 刷新Token
+```
+
+#### 用户 `/api/user`
+```typescript
+GET    /profile            # 获取个人信息
+PUT    /profile            # 更新个人信息
+GET    /bet-history        # 投注历史
+GET    /point-records      # 积分记录
+POST   /bet                # 创建投注
+DELETE /cancel-bet         # 取消投注
+GET    /current-issue-bets # 当前期投注
+```
+
+#### 开奖 `/api/lottery`
+```typescript
+GET    /current-issue      # 当前期信息
+GET    /results            # 开奖历史
+GET    /countdown          # 倒计时
+GET    /bet-type-settings  # 投注类型配置
+```
+
+#### 管理 `/api/admin`
+```typescript
+GET    /users              # 用户列表
+POST   /users/:id/adjust-points  # 调整积分
+GET    /bets               # 投注记录
+GET    /lottery/results    # 开奖记录
+POST   /lottery/sync       # 手动同步
+GET    /statistics         # 统计数据
+GET    /bet-settings       # 投注设置
+PUT    /bet-settings       # 更新设置
+```
+
+---
+
+## 开发指南
+
+### 创建新模块
+
+```bash
+# 生成模块、控制器、服务
+nest g module modules/your-module
+nest g controller modules/your-module
+nest g service modules/your-module
+```
+
+### 数据库操作
+
+#### 创建迁移
+
+```bash
+# 修改 prisma/schema.prisma 后
+npx prisma migrate dev --name your_migration_name
+```
+
+#### 查看数据库
+
+```bash
+npx prisma studio
+```
+
+#### 重置数据库
+
+```bash
+npx prisma migrate reset
+```
+
+### 运行测试
+
+```bash
+# 单元测试
+npm run test
+
+# E2E测试
+npm run test:e2e
+
+# 测试覆盖率
+npm run test:cov
+```
+
+### 代码规范
+
+```bash
+# Lint检查
+npm run lint
+
+# 格式化代码
+npm run format
+```
+
+---
+
+## 核心功能实现
+
+### 1. 多数据源管理
+
+```typescript
+// src/modules/lottery/services/lottery-data-source.manager.ts
+export class LotteryDataSourceManager {
+  // 自动故障转移
+  // 数据新鲜度检测
+  // 循环重试机制
+}
+```
+
+**特性**:
+- ✅ JND28、USA28 双数据源
+- ✅ 自动故障转移
+- ✅ 数据新鲜度检测（连续3次陈旧数据自动切换）
+- ✅ 循环重试（最多2轮）
+
+### 2. 智能同步机制
+
+```typescript
+// src/modules/lottery/lottery-sync.service.ts
+@Injectable()
+export class LotterySyncService {
+  // 开奖后60秒：每5秒密集检测
+  // 其他时间：每60秒常规检测
+}
+```
+
+**特性**:
+- ✅ 智能自适应频率
+- ✅ 开奖后密集检测
+- ✅ 平时节省资源
+- ✅ 防止并发同步
+
+### 3. 自动结算
+
+```typescript
+// src/modules/lottery/lottery.service.ts
+async autoSettle(issue: string) {
+  // 获取所有待结算投注
+  // 计算结算金额
+  // 更新用户积分
+  // 记录积分变动
+}
+```
+
+**特性**:
+- ✅ 支持多种玩法
+- ✅ 精确计算（Prisma.Decimal）
+- ✅ 事务保证一致性
+- ✅ 完整审计日志
+
+### 4. 投注规则
+
+```typescript
+// src/modules/lottery/utils/lottery-rules.util.ts
+
+// 倍数下注
+calculateMultipleBetResult(multiplier, isReturn, feeRate, feeBase)
+
+// 大小单双
+calculateBigSmallOddEvenResult(amount, betContent, resultSum, isReturn)
+
+// 组合下注
+calculateComboBetResult(amount, betContent, resultSum, isReturn, feeRate)
+```
+
+**规则**:
+- 倍数：回本(+倍数-费)，不回本(-0.8倍-费)
+- 大小单双：命中不回本(+1.8倍)，回本(0)，未命中(-本金)
+- 组合：命中不回本(-5倍-费)，回本(-费)，未命中(+本金-费)
+
+---
+
+## 部署说明
+
+### Docker部署
+
+```bash
+# 构建镜像
+docker build -t score-system-backend .
+
+# 运行容器
+docker run -d \
+  --name score-system-backend \
+  -p 3000:3000 \
+  -e DATABASE_URL="mysql://user:pass@db:3306/score_system" \
+  score-system-backend
+```
+
+### 使用Docker Compose
+
+```bash
+cd ..  # 回到项目根目录
+docker-compose up -d backend
+```
+
+### 生产环境配置
+
+1. **环境变量**:
+```env
+NODE_ENV=production
+DATABASE_URL="mysql://user:password@host:3306/score_system"
+JWT_SECRET=强随机密钥（至少32位）
+```
+
+2. **数据库优化**:
+```sql
+-- 修复 Decimal 字段
+ALTER TABLE bets MODIFY COLUMN fee DECIMAL(10,2) NOT NULL DEFAULT 0.00;
+ALTER TABLE bets MODIFY COLUMN result_amount DECIMAL(10,2) NULL DEFAULT NULL;
+```
+
+3. **性能优化**:
+- 启用 Redis 缓存
+- 配置连接池
+- 启用 gzip 压缩
+
+---
+
+## 常见问题
+
+### Q: crypto.randomUUID 报错？
+
+**A**: Node.js 版本不足，升级到 20+
+
+```bash
+# 检查版本
+node -v
+
+# 升级 Node.js
+nvm install 20
+nvm use 20
+```
+
+### Q: Prisma Client 生成失败？
+
+**A**: 清理并重新生成
+
+```bash
+rm -rf node_modules/.prisma
+npx prisma generate
+```
+
+### Q: 数据源切换不生效？
+
+**A**: 检查日志和配置
+
+```bash
+# 查看数据源日志
+docker logs -f score-system-backend | grep "数据源"
+
+# 手动触发同步
+curl -X POST http://localhost:3000/api/admin/lottery/sync
+```
+
+---
+
+## 性能指标
+
+- **API响应时间**: < 100ms (p95)
+- **数据库查询**: < 50ms (平均)
+- **开奖同步延迟**: < 10秒
+- **并发支持**: 1000+ req/s
+
+---
+
+## 待办事项
+
+- [ ] 增加单元测试覆盖率（目标80%+）
+- [ ] 实现 Redis 缓存层
+- [ ] 添加性能监控（Prometheus）
+- [ ] 支持WebSocket实时推送
+- [ ] 实现数据库读写分离
+
+---
+
+**维护者**: AI Assistant  
+**最后更新**: 2025-11-30

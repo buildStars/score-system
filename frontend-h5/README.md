@@ -1,16 +1,87 @@
-# 📱 前端H5用户端
+# 📱 云策28计分系统 - H5用户端
 
-## ✅ 项目状态：100%完成 🎉
-
-这是计分系统的H5移动端用户界面，**所有5个核心模块已100%开发完成**并可正常使用。
-
-**完成时间**：2024年11月26日  
-**项目版本**：v1.0  
-**完成度**：100%
+基于 Vue 3 + Vant 4 的移动端彩票投注应用。
 
 ---
 
-## 🚀 快速开始
+## 📋 目录
+
+- [技术栈](#技术栈)
+- [项目结构](#项目结构)
+- [快速开始](#快速开始)
+- [功能模块](#功能模块)
+- [开发指南](#开发指南)
+- [部署说明](#部署说明)
+
+---
+
+## 技术栈
+
+- **框架**: Vue 3.3+ (Composition API)
+- **构建工具**: Vite 5.x
+- **UI组件**: Vant 4.x
+- **状态管理**: Pinia 2.x
+- **路由**: Vue Router 4.x
+- **HTTP客户端**: Axios
+- **样式预处理**: Less
+- **工具库**: Day.js
+- **类型检查**: TypeScript 5.x
+
+---
+
+## 项目结构
+
+```
+frontend-h5/
+├── src/
+│   ├── views/                    # 页面组件
+│   │   ├── Login.vue            # 登录页
+│   │   ├── Home.vue             # 首页（投注）
+│   │   ├── BetHistory.vue       # 投注历史
+│   │   ├── PointRecords.vue     # 积分记录
+│   │   ├── Profile.vue          # 个人中心
+│   │   └── MessageList.vue      # 消息公告
+│   │
+│   ├── components/               # 公共组件
+│   │   ├── Navbar.vue           # 顶部导航
+│   │   └── TabBar.vue           # 底部导航
+│   │
+│   ├── stores/                   # 状态管理
+│   │   └── user.ts              # 用户状态
+│   │
+│   ├── api/                      # API接口
+│   │   ├── request.ts           # Axios配置
+│   │   ├── auth.ts              # 认证接口
+│   │   ├── user.ts              # 用户接口
+│   │   ├── lottery.ts           # 开奖接口
+│   │   ├── bet.ts               # 投注接口
+│   │   ├── system.ts            # 系统接口
+│   │   └── message.ts           # 消息接口
+│   │
+│   ├── router/                   # 路由配置
+│   │   └── index.ts
+│   │
+│   ├── utils/                    # 工具函数
+│   │   └── format.ts            # 格式化工具
+│   │
+│   ├── types/                    # TypeScript类型
+│   │   └── index.ts
+│   │
+│   ├── App.vue                   # 根组件
+│   └── main.ts                   # 入口文件
+│
+├── public/                       # 静态资源
+├── Dockerfile                    # Docker镜像
+├── nginx.conf                    # Nginx配置
+├── .env.development              # 开发环境变量
+├── .env.production               # 生产环境变量
+├── vite.config.ts                # Vite配置
+└── package.json
+```
+
+---
+
+## 快速开始
 
 ### 1. 安装依赖
 
@@ -18,15 +89,34 @@
 npm install
 ```
 
-### 2. 启动开发服务器
+### 2. 配置环境变量
+
+创建 `.env.development`:
+
+```env
+# API地址
+VITE_API_BASE_URL=http://localhost:3000/api
+
+# 应用标题
+VITE_APP_TITLE=云策28计分系统
+```
+
+创建 `.env.production`:
+
+```env
+VITE_API_BASE_URL=/api
+VITE_APP_TITLE=云策28计分系统
+```
+
+### 3. 启动开发服务器
 
 ```bash
 npm run dev
 ```
 
-访问：http://localhost:5173
+访问 http://localhost:5173
 
-### 3. 打包生产版本
+### 4. 构建生产版本
 
 ```bash
 npm run build
@@ -34,244 +124,426 @@ npm run build
 
 ---
 
-## 🎯 已实现功能
+## 功能模块
 
-### ✅ 核心功能
-1. **用户登录** - JWT认证、状态持久化
-2. **首页下注** - 倍数下注、组合下注、实时倒计时
-3. **开奖历史** - 列表展示、搜索、分页加载
-4. **积分记录** - 变动记录、类型筛选、分页加载
-5. **个人中心** - 用户信息、修改密码、退出登录
+### 1. 用户认证
 
-### 📄 页面列表
-- `/login` - 登录页 ✅
-- `/` - 首页（下注页）✅
-- `/history` - 开奖历史 ✅
-- `/point-records` - 积分记录 ✅
-- `/profile` - 个人中心 ✅
+**路径**: `/login`
 
----
+**功能**:
+- ✅ 用户名/密码登录
+- ✅ 自动跳转
+- ✅ Token本地存储
+- ✅ 自动续期
 
-## 🛠️ 技术栈
+**实现**:
+```vue
+<script setup lang="ts">
+import { authApi } from '@/api/auth'
+import { useUserStore } from '@/stores/user'
 
-### 核心技术
-- **框架**：Vue 3.4+ (Composition API + `<script setup>`)
-- **UI库**：Vant UI 4.x
-- **构建**：Vite 5.x
-- **语言**：TypeScript 5.x
-- **路由**：Vue Router 4.x
-- **状态**：Pinia (持久化)
-- **HTTP**：Axios
-- **样式**：Sass/SCSS
+const userStore = useUserStore()
 
-### 特性
-- ✅ TypeScript类型系统
-- ✅ Axios请求/响应拦截器
-- ✅ 路由守卫（登录拦截）
-- ✅ Pinia状态持久化
-- ✅ Vant组件按需引入
-- ✅ 移动端适配
-- ✅ ESLint + Prettier
-
----
-
-## 📂 项目结构
-
-```
-frontend-h5/
-├── public/                     # 静态资源
-├── src/
-│   ├── api/                   # ✅ API接口封装
-│   │   ├── index.ts
-│   │   ├── request.ts        # Axios配置
-│   │   ├── user.ts           # 用户API
-│   │   └── lottery.ts        # 开奖API
-│   ├── assets/               # ✅ 资源文件
-│   │   └── styles/           # 全局样式
-│   ├── router/               # ✅ 路由配置
-│   │   └── index.ts          # 路由守卫
-│   ├── stores/               # ✅ 状态管理
-│   │   ├── user.ts           # 用户Store
-│   │   └── lottery.ts        # 开奖Store
-│   ├── types/                # ✅ TypeScript类型
-│   │   ├── api.ts
-│   │   ├── user.ts
-│   │   └── bet.ts
-│   ├── utils/                # ✅ 工具函数
-│   │   ├── format.ts         # 格式化
-│   │   └── validate.ts       # 验证
-│   ├── views/                # ✅ 页面组件
-│   │   ├── Login.vue         # 登录页
-│   │   ├── Home.vue          # 首页
-│   │   ├── History.vue       # 历史
-│   │   ├── PointRecords.vue  # 积分
-│   │   └── Profile.vue       # 我的
-│   ├── App.vue
-│   ├── main.ts
-│   └── vite-env.d.ts
-├── .eslintrc.cjs             # ESLint配置
-├── .prettierrc.json          # Prettier配置
-├── index.html
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-├── PROJECT.md                # 项目详细说明
-└── README.md                 # 本文件
+const onLogin = async () => {
+  const res = await authApi.login(form.value)
+  userStore.setUser(res.data.user)
+  userStore.setToken(res.data.token)
+  router.push('/')
+}
+</script>
 ```
 
 ---
 
-## 📡 API配置
+### 2. 首页投注
 
-### 开发环境
+**路径**: `/`
+
+**功能**:
+- ✅ 实时倒计时（精确到秒）
+- ✅ 多种玩法：倍数、大小单双、组合
+- ✅ 动态加载配置（费率、限额）
+- ✅ 智能封盘（开奖前30秒）
+- ✅ 余额检查
+- ✅ 实时显示当前期投注
+
+**核心代码**:
+```typescript
+// 倒计时
+const countdown = ref(0)
+const polling = setInterval(async () => {
+  const res = await lotteryApi.getCountdown()
+  countdown.value = res.data.remainingSeconds
+}, 1000)
+
+// 投注
+const placeBet = async () => {
+  await betApi.createBet({
+    betType: 'multiple',
+    betContent: '100',
+    amount: 100
+  })
+  showToast('投注成功')
+}
 ```
-代理地址：http://localhost:8081
-```
 
-配置文件：`vite.config.ts`
-
-### 接口列表
-- `POST /userApi/login` - 用户登录
-- `GET /userApi/info` - 获取用户信息
-- `POST /userApi/bet` - 提交下注
-- `GET /userApi/bet-history` - 下注历史
-- `GET /userApi/point-records` - 积分记录
-- `GET /userApi/current` - 当前期信息
-- `GET /userApi/history` - 开奖历史
-- `POST /userApi/change-password` - 修改密码
+**UI特性**:
+- 📱 响应式布局
+- 🎨 动态主题色
+- ⚡ 流畅动画
+- 🔔 Toast提示
 
 ---
 
-## 🎨 界面展示
+### 3. 投注历史
 
-### 核心功能
-1. **登录页面**
-   - 简洁美观的渐变背景
-   - 表单验证
-   - 加载状态
+**路径**: `/bet-history`
 
-2. **首页下注**
-   - 顶部信息栏（积分、期号）
-   - 实时倒计时
-   - 上期开奖结果
-   - 倍数/组合下注切换
-   - 手续费自动计算
-   - 二次确认
+**功能**:
+- ✅ 分期显示投注记录
+- ✅ 合并同期多笔投注
+- ✅ 显示结算结果
+- ✅ 积分变化明细
+- ✅ 下拉刷新
+- ✅ 上拉加载
 
-3. **历史记录**
-   - 开奖号码展示
-   - 大小单双标签
-   - 回本标记
-   - 期号搜索
-
-4. **积分记录**
-   - 类型筛选
-   - 余额变动
-   - 加减分标记
-
-5. **个人中心**
-   - 用户信息
-   - 积分统计
-   - 功能菜单
-   - 修改密码
-   - 退出登录
+**数据展示**:
+```vue
+<template>
+  <van-list
+    v-model:loading="loading"
+    :finished="finished"
+    @load="onLoad"
+  >
+    <div v-for="bet in bets" :key="bet.id">
+      <div class="bet-card">
+        <div>期号: {{ bet.issue }}</div>
+        <div>金额: {{ formatMoney(bet.amount) }}</div>
+        <div>结果: {{ formatMoney(bet.resultAmount) }}</div>
+      </div>
+    </div>
+  </van-list>
+</template>
+```
 
 ---
 
-## 🔧 开发命令
+### 4. 积分记录
+
+**路径**: `/point-records`
+
+**功能**:
+- ✅ 完整积分变动记录
+- ✅ 类型筛选（全部/上分/下分/赢/输）
+- ✅ 显示变动前后余额
+- ✅ 关联投注/充值记录
+- ✅ 分页加载
+
+**筛选逻辑**:
+```typescript
+const filterType = ref('all')
+const filteredRecords = computed(() => {
+  if (filterType.value === 'all') return records.value
+  return records.value.filter(r => r.type === filterType.value)
+})
+```
+
+---
+
+### 5. 个人中心
+
+**路径**: `/profile`
+
+**功能**:
+- ✅ 显示用户信息
+- ✅ 当前积分余额
+- ✅ 账户统计
+- ✅ 退出登录
+
+**界面**:
+```vue
+<template>
+  <div class="profile">
+    <div class="user-info">
+      <div class="username">{{ user.username }}</div>
+      <div class="points">{{ formatMoney(user.points) }}</div>
+    </div>
+    
+    <van-cell-group>
+      <van-cell title="投注历史" is-link to="/bet-history" />
+      <van-cell title="积分记录" is-link to="/point-records" />
+      <van-cell title="消息公告" is-link to="/messages" />
+    </van-cell-group>
+    
+    <van-button @click="onLogout">退出登录</van-button>
+  </div>
+</template>
+```
+
+---
+
+### 6. 消息公告
+
+**路径**: `/messages`
+
+**功能**:
+- ✅ 查看系统公告
+- ✅ 标记已读/未读
+- ✅ 富文本内容
+- ✅ 按时间倒序
+
+---
+
+## 开发指南
+
+### 添加新页面
+
+1. **创建页面组件**:
+```vue
+<!-- src/views/NewPage.vue -->
+<template>
+  <div class="new-page">
+    <h1>New Page</h1>
+  </div>
+</template>
+
+<script setup lang="ts">
+// 页面逻辑
+</script>
+
+<style scoped lang="less">
+.new-page {
+  padding: 16px;
+}
+</style>
+```
+
+2. **添加路由**:
+```typescript
+// src/router/index.ts
+{
+  path: '/new-page',
+  name: 'NewPage',
+  component: () => import('@/views/NewPage.vue'),
+  meta: { 
+    requiresAuth: true,  // 需要登录
+    title: '新页面'
+  }
+}
+```
+
+### 调用API
+
+1. **定义API**:
+```typescript
+// src/api/your-api.ts
+import request from './request'
+
+export const yourApi = {
+  getData: () => request.get('/your-endpoint'),
+  postData: (data: any) => request.post('/your-endpoint', data),
+}
+```
+
+2. **使用API**:
+```vue
+<script setup lang="ts">
+import { yourApi } from '@/api/your-api'
+
+const getData = async () => {
+  const res = await yourApi.getData()
+  console.log(res.data)
+}
+</script>
+```
+
+### 使用状态管理
+
+```typescript
+// src/stores/your-store.ts
+import { defineStore } from 'pinia'
+
+export const useYourStore = defineStore('your', {
+  state: () => ({
+    data: null
+  }),
+  actions: {
+    setData(data: any) {
+      this.data = data
+    }
+  }
+})
+```
+
+### 样式规范
+
+```less
+// 使用 Less 变量
+@primary-color: #1989fa;
+@text-color: #323233;
+
+// 使用 BEM 命名
+.bet-card {
+  &__header { }
+  &__content { }
+  &--active { }
+}
+```
+
+---
+
+## 部署说明
+
+### 方式一：Docker部署
 
 ```bash
-# 安装依赖
-npm install
+# 构建镜像
+docker build -t score-system-h5 .
 
-# 启动开发服务器
-npm run dev
+# 运行容器
+docker run -d -p 5173:80 score-system-h5
+```
 
-# 类型检查
+### 方式二：Nginx部署
+
+1. **构建项目**:
+```bash
 npm run build
+```
 
-# 预览构建结果
-npm run preview
+2. **配置Nginx**:
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    root /var/www/h5/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api {
+        proxy_pass http://localhost:3000;
+    }
+}
+```
+
+3. **部署文件**:
+```bash
+cp -r dist/* /var/www/h5/
 ```
 
 ---
 
-## 📝 使用说明
+## 性能优化
 
-### 测试账号
-请联系管理员获取测试账号
+### 1. 路由懒加载
 
-### 开发调试
-1. 确保后端服务已启动（端口8081）
-2. 启动前端：`npm run dev`
-3. 浏览器打开：http://localhost:5173
-4. 使用手机模式查看效果
+```typescript
+const routes = [
+  {
+    path: '/bet-history',
+    component: () => import('@/views/BetHistory.vue')  // 懒加载
+  }
+]
+```
 
-### 部署流程
-1. 修改生产环境API地址
-2. 执行构建：`npm run build`
-3. 上传`dist`目录到服务器
-4. 配置Nginx
+### 2. 图片优化
 
----
+```vue
+<img 
+  :src="imageUrl" 
+  loading="lazy"  <!-- 懒加载 -->
+  alt="description"
+>
+```
 
-## 📖 相关文档
+### 3. 组件按需引入
 
-- [详细项目说明](./PROJECT.md)
-- [API接口文档](../docs/API接口文档.md)
-- [前端H5开发指南](../docs/前端H5开发指南.md)
-- [业务规则详解](../docs/业务规则详解.md)
+```typescript
+// vite.config.ts
+import Components from 'unplugin-vue-components/vite'
+import { VantResolver } from 'unplugin-vue-components/resolvers'
 
----
+export default {
+  plugins: [
+    Components({
+      resolvers: [VantResolver()]  // 按需引入Vant组件
+    })
+  ]
+}
+```
 
-## ✨ 项目亮点
+### 4. Gzip压缩
 
-1. **完整的TypeScript支持**
-   - 全面的类型定义
-   - 类型安全的API调用
-   - 智能代码提示
+```typescript
+// vite.config.ts
+import viteCompression from 'vite-plugin-compression'
 
-2. **优秀的用户体验**
-   - 流畅的页面切换
-   - 实时的数据更新
-   - 友好的错误提示
-   - 美观的UI设计
-
-3. **规范的代码结构**
-   - 清晰的目录划分
-   - 统一的命名规范
-   - 模块化的设计
-   - 易于维护和扩展
-
-4. **完善的功能实现**
-   - 登录认证
-   - 权限控制
-   - 状态管理
-   - 数据持久化
-   - 错误处理
-
----
-
-## 🎉 项目完成情况
-
-- [x] 项目初始化和配置
-- [x] API接口封装
-- [x] 路由配置
-- [x] 状态管理
-- [x] 登录页面
-- [x] 首页下注功能
-- [x] 开奖历史页面
-- [x] 积分记录页面
-- [x] 个人中心页面
-- [x] 底部导航栏
-- [x] 代码规范配置
+export default {
+  plugins: [
+    viteCompression({
+      algorithm: 'gzip',
+      threshold: 10240  // 超过10KB才压缩
+    })
+  ]
+}
+```
 
 ---
 
-**项目版本**：v1.0  
-**开发日期**：2024年11月26日  
-**项目状态**：✅ 已完成  
-**开发者**：AI Assistant
+## 常见问题
 
-祝使用愉快！🚀
+### Q: 开发环境跨域问题？
 
+**A**: 配置Vite代理
+
+```typescript
+// vite.config.ts
+export default {
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true
+      }
+    }
+  }
+}
+```
+
+### Q: 生产环境白屏？
+
+**A**: 检查路由配置和base路径
+
+```typescript
+// vite.config.ts
+export default {
+  base: '/',  // 确保base路径正确
+}
+```
+
+### Q: Toast/Dialog不显示？
+
+**A**: 确保已引入样式
+
+```typescript
+// main.ts
+import 'vant/es/toast/style'
+import 'vant/es/dialog/style'
+```
+
+---
+
+## 浏览器兼容性
+
+- Chrome >= 90
+- Safari >= 14
+- iOS Safari >= 14
+- Android WebView >= 90
+
+---
+
+**维护者**: AI Assistant  
+**最后更新**: 2025-11-30
