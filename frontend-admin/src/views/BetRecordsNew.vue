@@ -279,8 +279,15 @@ const fetchSummary = async () => {
 const handleSearch = () => {
   pagination.page = 1
   fetchBetList()
-  // 有搜索条件时停止自动刷新
-  stopPollSummary()
+  // 搜索时也尝试刷新汇总（如果当前期号未变，可能也有新注单）
+  if (!searchForm.issue && !searchForm.userId) {
+     // 只有当没有特定搜索条件时（看的是实时全量），才刷新实时汇总
+     fetchSummary()
+     startPollSummary()
+  } else {
+     // 有搜索条件时，停止实时汇总轮询
+     stopPollSummary()
+  }
 }
 
 // 停止轮询

@@ -177,3 +177,20 @@ model AdminLog {
   @@index([adminId, createdAt], map: "idx_admin_created")
   @@map("admin_logs")
 }
+
+model Message {
+  id          Int       @id @default(autoincrement()) @db.UnsignedInt
+  name        String    @db.VarChar(50)
+  contact     String    @db.VarChar(100)
+  message     String    @db.Text
+  status      String    @default("unread") @db.VarChar(20)
+  adminReply  String?   @map("admin_reply") @db.Text
+  repliedAt   DateTime? @map("replied_at")
+  repliedBy   Int?      @map("replied_by") @db.UnsignedInt
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([status], map: "idx_status")
+  @@index([createdAt], map: "idx_created_at")
+  @@map("messages")
+}

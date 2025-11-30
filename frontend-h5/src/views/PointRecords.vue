@@ -8,7 +8,7 @@
     </van-nav-bar>
 
     <!-- 汇总统计区域 -->
-    <div class="summary-section">
+    <!-- <div class="summary-section">
       <div class="summary-title">上下分汇总</div>
       <div class="summary-grid">
         <div class="summary-item">
@@ -26,7 +26,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </div> -->
 
     <!-- 筛选栏 + 表头 -->
     <div class="fixed-header-wrapper">

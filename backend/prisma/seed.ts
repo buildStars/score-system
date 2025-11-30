@@ -134,7 +134,34 @@ async function main() {
   }
   console.log('✅ 模式设置(Bet Type Settings)已初始化');
 
-  // 3. 创建测试用户
+  // 3. 初始化系统设置
+  const systemSettings = [
+    {
+      settingKey: 'site_title',
+      settingName: '网站标题',
+      settingValue: '计分系统',
+      description: '网站名称，显示在H5首页和浏览器标题栏',
+      valueType: 'string',
+    },
+    {
+      settingKey: 'site_subtitle',
+      settingName: '网站副标题',
+      settingValue: '一分耕耘，一分收获',
+      description: '网站副标题，显示在H5首页',
+      valueType: 'string',
+    },
+  ];
+
+  for (const setting of systemSettings) {
+    await prisma.systemSetting.upsert({
+      where: { settingKey: setting.settingKey },
+      update: setting,
+      create: setting,
+    });
+  }
+  console.log('✅ 系统设置(System Settings)已初始化');
+
+  // 4. 创建测试用户
   const testUserPassword = await bcrypt.hash('123456', 10);
   const testUser = await prisma.user.upsert({
     where: { username: 'test' },

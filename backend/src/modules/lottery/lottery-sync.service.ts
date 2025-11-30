@@ -10,8 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
  * 功能：
  * 1. 每3分钟自动同步一次（兜底）
  * 2. 智能检测：根据开奖时间动态调整检测频率
- *    - 平时：每30秒检测一次
- *    - 开奖前30秒：每10秒检测一次
+ *    - 平时：每60秒检测一次（节省资源）
  *    - 开奖后60秒：每5秒检测一次（密集获取）
  * 3. 解决第三方API延迟问题
  */
@@ -107,7 +106,7 @@ export class LotterySyncService {
    * 策略：
    * - 开奖后60秒内：每5秒检测一次（快速获取新期数据）
    * - 检测到新期后：立即停止密集检测，恢复常规频率
-   * - 其他时间：每30秒检测一次（节省资源）
+   * - 其他时间：每60秒检测一次（节省资源）
    */
   @Cron('*/5 * * * * *', {
     name: 'lottery-smart-check',
@@ -182,11 +181,11 @@ export class LotterySyncService {
       return true;
     }
     
-    // 情况2：其他时间，每30秒检测一次（节省资源）
-    // 只在5秒定时器的特定时刻执行（0, 30秒）
+    // 情况2：其他时间，每60秒检测一次（节省资源）
+    // 只在5秒定时器的特定时刻执行（0秒）
     const currentSecond = now.getSeconds();
-    if (currentSecond % 30 === 0) {
-      this.logger.debug(`⏰ 常规检测（每30秒）`);
+    if (currentSecond === 0) {
+      this.logger.debug(`⏰ 常规检测（每分钟）`);
       return true;
     }
     

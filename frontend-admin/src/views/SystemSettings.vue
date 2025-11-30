@@ -14,6 +14,28 @@
         label-width="180px"
         v-loading="loading"
       >
+        <el-divider content-position="left">网站设置</el-divider>
+
+        <el-form-item label="网站标题" prop="siteTitle">
+          <el-input
+            v-model="form.siteTitle"
+            placeholder="计分系统"
+            maxlength="50"
+            show-word-limit
+          />
+          <span class="form-tip">显示在H5首页和浏览器标题栏</span>
+        </el-form-item>
+
+        <el-form-item label="网站副标题" prop="siteSubtitle">
+          <el-input
+            v-model="form.siteSubtitle"
+            placeholder="一分耕耘，一分收获"
+            maxlength="100"
+            show-word-limit
+          />
+          <span class="form-tip">显示在H5首页顶部标语栏</span>
+        </el-form-item>
+
         <el-divider content-position="left">游戏控制</el-divider>
 
         <el-form-item label="游戏开关" prop="gameEnabled">
@@ -178,6 +200,8 @@ const clearLoading = ref(false)
 const formRef = ref<FormInstance>()
 
 const form = reactive<SystemSettings>({
+  siteTitle: '计分系统',
+  siteSubtitle: '一分耕耘，一分收获',
   gameEnabled: true,
   maintenanceMode: false,
   systemNotice: '',

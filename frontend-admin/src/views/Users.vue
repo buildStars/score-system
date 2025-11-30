@@ -80,8 +80,14 @@
     </el-card>
 
     <!-- 创建用户对话框 -->
-    <el-dialog v-model="createDialog.visible" title="创建用户" width="500px">
-      <el-form ref="createFormRef" :model="createDialog.form" :rules="createRules" label-width="100px">
+    <el-dialog 
+      v-model="createDialog.visible" 
+      title="创建用户" 
+      width="90%" 
+      class="mobile-dialog"
+      style="max-width: 500px;"
+    >
+      <el-form ref="createFormRef" :model="createDialog.form" :rules="createRules" label-width="80px">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="createDialog.form.username" placeholder="请输入用户名" />
         </el-form-item>
@@ -92,7 +98,7 @@
           <el-input v-model="createDialog.form.nickname" placeholder="请输入昵称" />
         </el-form-item>
         <el-form-item label="初始积分" prop="points">
-          <el-input-number v-model="createDialog.form.points" :min="0" :precision="2" />
+          <el-input-number v-model="createDialog.form.points" :min="0" :precision="2" style="width: 100%;" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -107,7 +113,9 @@
     <el-dialog 
       v-model="pointsDialog.visible" 
       :title="pointsDialog.type === 'add' ? '上分' : '下分'" 
-      width="500px"
+      width="90%" 
+      class="mobile-dialog"
+      style="max-width: 500px;"
     >
       <el-alert 
         :type="pointsDialog.type === 'add' ? 'success' : 'warning'" 
@@ -115,18 +123,18 @@
         style="margin-bottom: 20px;"
       >
         <template #title>
-          <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;">
             <span>
               {{ pointsDialog.type === 'add' ? '💰 为用户增加积分' : '⚠️ 为用户扣除积分' }}
             </span>
-            <span style="font-weight: bold; font-size: 16px;">
-              当前积分: {{ formatMoney(pointsDialog.currentPoints) }}
+            <span style="font-weight: bold; font-size: 14px; margin-top: 4px;">
+              当前: {{ formatMoney(pointsDialog.currentPoints) }}
             </span>
           </div>
         </template>
       </el-alert>
 
-      <el-form ref="pointsFormRef" :model="pointsDialog.form" :rules="pointsRules" label-width="100px">
+      <el-form ref="pointsFormRef" :model="pointsDialog.form" :rules="pointsRules" label-width="80px">
         <el-form-item 
           :label="pointsDialog.type === 'add' ? '上分金额' : '下分金额'" 
           prop="amount"
@@ -158,12 +166,18 @@
     </el-dialog>
 
     <!-- 重置密码对话框 -->
-    <el-dialog v-model="passwordDialog.visible" title="重置密码" width="500px">
+    <el-dialog 
+      v-model="passwordDialog.visible" 
+      title="重置密码" 
+      width="90%" 
+      class="mobile-dialog"
+      style="max-width: 500px;"
+    >
       <el-form
         ref="passwordFormRef"
         :model="passwordDialog.form"
         :rules="passwordRules"
-        label-width="100px"
+        label-width="80px"
       >
         <el-form-item label="新密码" prop="newPassword">
           <el-input
@@ -249,7 +263,7 @@ const pointsDialog = reactive({
   type: 'add' as 'add' | 'deduct', // 操作类型：add=上分，deduct=下分
   currentPoints: 0, // 用户当前积分
   form: {
-    amount: 0,
+    amount: undefined as number | undefined,
     remark: '',
   },
 })
@@ -366,7 +380,7 @@ const handleAddPoints = (user: User) => {
   pointsDialog.type = 'add'
   pointsDialog.currentPoints = user.points
   pointsDialog.form = {
-    amount: 0,
+    amount: undefined,
     remark: '',
   }
   // 重置表单验证
@@ -382,7 +396,7 @@ const handleDeductPoints = (user: User) => {
   pointsDialog.type = 'deduct'
   pointsDialog.currentPoints = user.points
   pointsDialog.form = {
-    amount: 0,
+    amount: undefined,
     remark: '',
   }
   // 重置表单验证
@@ -398,9 +412,9 @@ const handleAdjustPointsConfirm = async () => {
   try {
     await pointsFormRef.value.validate()
     
-    // 检查下分时余额是否足够
+        // 检查下分时余额是否足够
     if (pointsDialog.type === 'deduct') {
-      const newPoints = pointsDialog.currentPoints - pointsDialog.form.amount
+      const newPoints = pointsDialog.currentPoints - (pointsDialog.form.amount || 0)
       if (newPoints < 0) {
         ElMessage.error('用户积分不足，无法下分')
         return
@@ -411,8 +425,8 @@ const handleAdjustPointsConfirm = async () => {
     
     // 根据类型调整金额正负
     const adjustAmount = pointsDialog.type === 'add' 
-      ? pointsDialog.form.amount 
-      : -pointsDialog.form.amount
+      ? (pointsDialog.form.amount || 0)
+      : -(pointsDialog.form.amount || 0)
     
     await adjustUserPoints(pointsDialog.userId, {
       amount: adjustAmount,

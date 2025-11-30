@@ -2,7 +2,7 @@
   <div class="home-page">
     <!-- 顶部标语 -->
     <div class="slogan-bar">
-      一分耕耘，一分收获
+      {{ siteSubtitle }}
     </div>
 
     <!-- 精简信息栏 + 倒计时 -->
@@ -212,7 +212,7 @@ import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { showToast, showConfirmDialog, closeToast } from 'vant'
 import { useUserStore } from '@/stores/user'
 import { useLotteryStore } from '@/stores/lottery'
-import { userApi, getLotteryStatus, getBetTypeSettings } from '@/api'
+import { userApi, getLotteryStatus, getBetTypeSettings, getSystemSettings } from '@/api'
 import { getCurrentIssueBets, cancelBet, type CurrentIssueBetsData } from '@/api/bet'
 import { formatMoney, formatPoints, formatIssue } from '@/utils/format'
 import type { BetType } from '@/types/bet'
@@ -230,6 +230,10 @@ const showQuickAmountSetting = ref(false)
 const lotteryStatus = ref<LotteryStatus | null>(null)
 const serverTimeOffset = ref(0) // 服务器时间与客户端时间的差值（毫秒）
 const currentIssueBets = ref<CurrentIssueBetsData | null>(null) // 当前期下注记录
+
+// 系统设置
+const siteTitle = ref('计分系统')
+const siteSubtitle = ref('一分耕耘，一分收获')
 
 // 下注类型设置（从后端获取）
 const betTypeSettings = ref<BetTypeSetting[]>([])
@@ -597,15 +601,6 @@ const handleCancelBet = async (betType: string, betContent: string) => {
   }
 
   try {
-    // 确认取消
-    await showConfirmDialog({
-      title: '确认取消',
-      message: `确定要取消 ${betType === 'multiple' ? betContent + '倍数' : betContent} 的下注吗？`,
-      confirmButtonText: '确定取消',
-      confirmButtonColor: '#ee0a24',
-      cancelButtonText: '我再想想',
-    })
-
     const res = await cancelBet({
       issue: currentIssueBets.value.issue,
       betType,
@@ -626,25 +621,20 @@ const handleCancelBet = async (betType: string, betContent: string) => {
       loadCurrentIssueBets(),
     ])
   } catch (error: any) {
-    if (error === 'cancel') {
-      // 用户取消操作
-      return
-    } else {
-      console.error('取消下注失败：', error)
-      
-      let errorMessage = '取消失败，请重试'
-      if (error?.response?.data?.message) {
-        errorMessage = error.response.data.message
-      } else if (error?.message) {
-        errorMessage = error.message
-      }
-      
-      showToast({
-        message: `❌ ${errorMessage}`,
-        type: 'fail',
-        duration: 3000,
-      })
+    console.error('取消下注失败：', error)
+    
+    let errorMessage = '取消失败，请重试'
+    if (error?.response?.data?.message) {
+      errorMessage = error.response.data.message
+    } else if (error?.message) {
+      errorMessage = error.message
     }
+    
+    showToast({
+      message: `❌ ${errorMessage}`,
+      type: 'fail',
+      duration: 3000,
+    })
   }
 }
 
@@ -1036,9 +1026,31 @@ const loadBetTypeSettings = async () => {
   }
 }
 
+/**
+ * 加载系统设置（网站标题等）
+ */
+const loadSystemSettings = async () => {
+  try {
+    const res = await getSystemSettings()
+    if (res.data) {
+      siteTitle.value = res.data.siteTitle || '计分系统'
+      siteSubtitle.value = res.data.siteSubtitle || '一分耕耘，一分收获'
+      // 更新浏览器标题
+      document.title = siteTitle.value
+      console.log('✅ 系统设置加载成功:', res.data)
+    }
+  } catch (error) {
+    console.error('❌ 加载系统设置失败:', error)
+    // 出错时使用默认值
+  }
+}
+
 onMounted(async () => {
-  // 先加载下注类型设置
-  await loadBetTypeSettings()
+  // 先加载系统设置和下注类型设置
+  await Promise.all([
+    loadSystemSettings(),
+    loadBetTypeSettings()
+  ])
   // loadCurrentData() 会自动加载 loadCurrentIssueBets()
   loadCurrentData()
 })

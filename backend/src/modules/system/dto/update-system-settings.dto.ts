@@ -2,6 +2,16 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsBoolean, IsString, IsNumber, Min, Max } from 'class-validator';
 
 export class UpdateSystemSettingsDto {
+  @ApiProperty({ description: '网站标题', required: false })
+  @IsOptional()
+  @IsString()
+  siteTitle?: string;
+
+  @ApiProperty({ description: '网站副标题', required: false })
+  @IsOptional()
+  @IsString()
+  siteSubtitle?: string;
+
   @ApiProperty({ description: '游戏开启状态', required: false })
   @IsOptional()
   @IsBoolean()

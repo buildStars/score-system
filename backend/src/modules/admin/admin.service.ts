@@ -65,6 +65,14 @@ export class AdminService {
     const totalLoss = Number(lossBets._sum.resultAmount || 0);
     const netProfit = totalWin + totalLoss; // loss是负数，所以直接相加
 
+    // 用户总积分（实时，不受时间限制）
+    const totalUserPointsAggregate = await this.prisma.user.aggregate({
+      _sum: {
+        points: true,
+      },
+    });
+    const totalUserPoints = Number(totalUserPointsAggregate._sum.points || 0);
+
     // 2. 每日统计
     const dailyData = await this.getDailyStatistics(start, end);
 
@@ -84,6 +92,7 @@ export class AdminService {
         totalWin: totalWin.toFixed(2), // 赢的结算金额保留两位小数
         totalLoss: totalLoss.toFixed(2), // 输的结算金额保留两位小数
         netProfit: netProfit.toFixed(2), // 净盈亏保留两位小数
+        totalUserPoints,
       },
       dailyData,
       betTypeStats,

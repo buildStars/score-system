@@ -97,7 +97,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="说明" min-width="150">
+        <!-- <el-table-column label="说明" min-width="150">
           <template #default="{ row }">
             <el-input
               v-model="row.description"
@@ -118,7 +118,7 @@
               重置
             </el-button>
           </template>
-        </el-table-column>
+        </el-table-column> -->
         </el-table>
       </div>
 

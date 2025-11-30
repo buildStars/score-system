@@ -9,6 +9,7 @@ import { LotteryModule } from './modules/lottery/lottery.module';
 import { PointModule } from './modules/point/point.module';
 import { SystemModule } from './modules/system/system.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { MessageModule } from './modules/message/message.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AdminModule } from './modules/admin/admin.module';
     PointModule,
     SystemModule,
     AdminModule,
+    MessageModule,
   ],
 })
 export class AppModule {}

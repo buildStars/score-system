@@ -11,14 +11,14 @@ import { ClearDataDto } from './dto/clear-data.dto';
 import { UpdateBetTypeSettingDto, BatchUpdateBetTypeSettingsDto } from './dto/bet-type-setting.dto';
 
 @ApiTags('系统设置')
-@ApiBearerAuth()
-@UseGuards(RolesGuard)
-@Roles('admin', 'superadmin')
-@Controller('admin')
+@Controller()
 export class SystemController {
   constructor(private readonly systemService: SystemService) {}
 
-  @Get('settings')
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @Get('admin/settings')
   @ApiOperation({ summary: '获取所有设置（下注设置+系统设置）' })
   @ApiResponse({ status: 200, description: '获取成功' })
   async getSettings() {
@@ -31,14 +31,30 @@ export class SystemController {
   }
 
   @Public()
-  @Get('bet-settings')
+  @Get('system/settings/public')
+  @ApiOperation({ summary: '获取公开系统设置（网站标题等）' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  async getPublicSystemSettings() {
+    const allSettings = await this.systemService.getSystemSettings();
+    // 只返回公开的设置
+    return {
+      siteTitle: allSettings.siteTitle || '计分系统',
+      siteSubtitle: allSettings.siteSubtitle || '一分耕耘，一分收获',
+    };
+  }
+
+  @Public()
+  @Get('admin/bet-settings')
   @ApiOperation({ summary: '获取下注设置（公开接口）' })
   @ApiResponse({ status: 200, description: '获取成功' })
   async getBetSettings() {
     return this.systemService.getBetSettings();
   }
 
-  @Put('bet-settings')
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @Put('admin/bet-settings')
   @ApiOperation({ summary: '更新下注设置' })
   @ApiResponse({ status: 200, description: '更新成功' })
   async updateBetSettings(
@@ -52,14 +68,20 @@ export class SystemController {
     );
   }
 
-  @Get('system-settings')
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @Get('admin/system-settings')
   @ApiOperation({ summary: '获取系统设置' })
   @ApiResponse({ status: 200, description: '获取成功' })
   async getSystemSettings() {
     return this.systemService.getSystemSettings();
   }
 
-  @Put('system-settings')
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @Put('admin/system-settings')
   @ApiOperation({ summary: '更新系统设置' })
   @ApiResponse({ status: 200, description: '更新成功' })
   async updateSystemSettings(
@@ -73,8 +95,10 @@ export class SystemController {
     );
   }
 
-  @Post('clear-data')
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
   @Roles('superadmin') // 仅超级管理员可以清空数据
+  @Post('admin/clear-data')
   @ApiOperation({ summary: '清空指定时间数据' })
   @ApiResponse({ status: 200, description: '清空成功' })
   async clearData(
@@ -90,21 +114,30 @@ export class SystemController {
 
   // ==================== 下注类型配置 ====================
   
-  @Get('bet-type-settings')
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @Get('admin/bet-type-settings')
   @ApiOperation({ summary: '获取所有下注类型配置' })
   @ApiResponse({ status: 200, description: '获取成功' })
   async getBetTypeSettings() {
     return this.systemService.getBetTypeSettings();
   }
 
-  @Get('bet-type-settings/:betType')
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @Get('admin/bet-type-settings/:betType')
   @ApiOperation({ summary: '获取指定下注类型配置' })
   @ApiResponse({ status: 200, description: '获取成功' })
   async getBetTypeSetting(@Param('betType') betType: string) {
     return this.systemService.getBetTypeSetting(betType);
   }
 
-  @Put('bet-type-settings/:betType')
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @Put('admin/bet-type-settings/:betType')
   @ApiOperation({ summary: '更新指定下注类型配置' })
   @ApiResponse({ status: 200, description: '更新成功' })
   async updateBetTypeSetting(
@@ -120,7 +153,10 @@ export class SystemController {
     );
   }
 
-  @Post('bet-type-settings/batch')
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @Post('admin/bet-type-settings/batch')
   @ApiOperation({ summary: '批量更新下注类型配置' })
   @ApiResponse({ status: 200, description: '批量更新成功' })
   async batchUpdateBetTypeSettings(

@@ -91,18 +91,23 @@
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? '手动录入开奖数据' : '编辑开奖数据'" width="500px">
-      <el-form :model="form" :rules="formRules" ref="formRef" label-width="100px">
+    <el-dialog 
+      v-model="dialogVisible" 
+      :title="dialogMode === 'create' ? '手动录入开奖数据' : '编辑开奖数据'" 
+      width="90%" 
+      style="max-width: 500px;"
+    >
+      <el-form :model="form" :rules="formRules" ref="formRef" label-width="80px">
         <el-form-item label="期号" prop="issue">
           <el-input v-model="form.issue" placeholder="请输入期号（如：20240101001）" :disabled="dialogMode === 'edit'" />
         </el-form-item>
-        <el-form-item label="第一个号码" prop="number1">
+        <el-form-item label="第一球" prop="number1">
           <el-input-number v-model="form.number1" :min="0" :max="9" :step="1" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="第二个号码" prop="number2">
+        <el-form-item label="第二球" prop="number2">
           <el-input-number v-model="form.number2" :min="0" :max="9" :step="1" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="第三个号码" prop="number3">
+        <el-form-item label="第三球" prop="number3">
           <el-input-number v-model="form.number3" :min="0" :max="9" :step="1" style="width: 100%" />
         </el-form-item>
         <el-form-item label="总和">
@@ -122,7 +127,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance } from 'element-plus'
-import { Search, Refresh, CircleCheck } from '@element-plus/icons-vue'
+import { Search, Refresh } from '@element-plus/icons-vue'
 import { getLotteryHistory, createLottery, updateLottery, deleteLottery, settleLottery } from '@/api/lottery'
 import { formatDateTime } from '@/utils/format'
 import type { LotteryResult } from '@/types'

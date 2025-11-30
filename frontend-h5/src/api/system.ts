@@ -15,9 +15,25 @@ export interface BetTypeSetting {
 }
 
 /**
+ * 系统设置（从 system_settings 表）
+ */
+export interface SystemSettings {
+  siteTitle?: string        // 网站标题
+  siteSubtitle?: string     // 网站副标题
+  [key: string]: any
+}
+
+/**
  * 获取所有启用的下注类型设置（公开接口，无需认证）
  */
 export function getBetTypeSettings(): Promise<ApiResponse<BetTypeSetting[]>> {
   return request.get('/lottery/bet-type-settings')
+}
+
+/**
+ * 获取系统设置（公开接口，无需认证）
+ */
+export function getSystemSettings(): Promise<ApiResponse<SystemSettings>> {
+  return request.get('/system/settings/public')
 }
 

@@ -8,6 +8,12 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: '登录', requiresAuth: false },
   },
   {
+    path: '/contact-us',
+    name: 'ContactUs',
+    component: () => import('@/views/ContactUs.vue'),
+    meta: { title: '咨询与合作', requiresAuth: false },
+  },
+  {
     path: '/',
     name: 'Home',
     component: () => import('@/views/Home.vue'),

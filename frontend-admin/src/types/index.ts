@@ -134,6 +134,8 @@ export interface BetSettings {
  * 系统设置
  */
 export interface SystemSettings {
+  siteTitle?: string // 网站标题
+  siteSubtitle?: string // 网站副标题
   gameEnabled: boolean
   maintenanceMode: boolean
   systemNotice: string
@@ -172,6 +174,7 @@ export interface StatisticsData {
     totalWin: number
     totalLoss: number
     netProfit: number
+    totalUserPoints: number
   }
   dailyData: Array<{
     date: string

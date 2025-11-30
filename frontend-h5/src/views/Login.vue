@@ -42,7 +42,11 @@
     </div>
 
     <div class="login-footer">
-      <p class="tips">请使用管理员提供的账号登录</p>
+     
+      <div class="contact-link" @click="goToContact">
+        <span class="contact-text">有疑问？合作洽谈</span>
+        <van-icon name="arrow" />
+      </div>
     </div>
   </div>
 </template>
@@ -95,6 +99,13 @@ const onSubmit = async () => {
     loading.value = false
   }
 }
+
+/**
+ * 跳转到咨询页面
+ */
+const goToContact = () => {
+  router.push('/contact-us')
+}
 </script>
 
 <style lang="scss" scoped>
@@ -143,6 +154,27 @@ const onSubmit = async () => {
   .tips {
     font-size: 12px;
     opacity: 0.8;
+    margin-bottom: 16px;
+  }
+
+  .contact-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+
+    &:active {
+      background: rgba(255, 255, 255, 0.3);
+      transform: scale(0.98);
+    }
+
+    .contact-text {
+      font-size: 14px;
+      margin-right: 4px;
+    }
   }
 }
 </style>

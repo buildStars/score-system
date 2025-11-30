@@ -1,300 +1,183 @@
-# 🎯 二八预测计分系统
+# 🎲 云策28计分系统
 
-## 📋 项目简介
-
-这是一个基于现有开奖数据源的**计分系统**，包含用户下注、积分管理、实时开奖等功能。系统采用前后端分离架构，提供移动端H5用户界面和PC端管理后台。
+一个基于 NestJS + Vue3 + MySQL 的全栈加拿大28彩票计分系统，支持多种投注玩法、实时开奖同步、智能数据源切换等功能。
 
 ---
 
-## 🏗️ 项目结构
+## 📋 目录
+
+- [✨ 功能特性](#-功能特性)
+- [🛠️ 技术栈](#️-技术栈)
+- [📁 项目结构](#-项目结构)
+- [🚀 快速开始](#-快速开始)
+- [📦 部署指南](#-部署指南)
+- [🔧 开发指南](#-开发指南)
+- [📖 API文档](#-api文档)
+- [❓ 常见问题](#-常见问题)
+
+---
+
+## ✨ 功能特性
+
+### 🎯 核心功能
+
+#### 用户端 (H5)
+- ✅ **用户登录注册**：支持用户名/密码登录，JWT鉴权
+- ✅ **多种玩法投注**：
+  - 倍数投注（赔率1.95）
+  - 大小单双（赔率1.8）
+  - 组合投注：大单/大双/小单/小双（赔率-5倍）
+- ✅ **实时倒计时**：精确到秒的开奖倒计时
+- ✅ **智能封盘**：开奖前30秒自动封盘
+- ✅ **下注历史**：查看个人投注记录和结算结果
+- ✅ **积分记录**：详细的积分变动历史
+- ✅ **公告通知**：查看系统公告和重要通知
+
+#### 管理端
+- ✅ **用户管理**：用户列表、状态管理、积分调整
+- ✅ **投注管理**：查看所有投注记录、统计数据
+- ✅ **开奖管理**：查看开奖历史、手动触发同步
+- ✅ **系统设置**：投注规则配置、费率调整
+- ✅ **公告管理**：发布/编辑/删除系统公告
+- ✅ **数据统计**：实时统计用户数、投注额、盈亏等
+
+#### 后端服务
+- ✅ **多数据源支持**：JND28、USA28双数据源，自动故障转移
+- ✅ **智能同步机制**：
+  - 开奖后60秒密集检测（每5秒）
+  - 平时常规检测（每60秒）
+  - 数据新鲜度检测，自动切换数据源
+- ✅ **自动结算**：开奖后自动结算所有投注
+- ✅ **交易记录**：完整的积分变动审计日志
+- ✅ **权限控制**：基于角色的访问控制（RBAC）
+
+### 🎨 特色功能
+
+- **动态配置**：投注规则、费率、赔率等可通过管理端动态调整
+- **小数精度**：使用 Prisma.Decimal 确保金额计算精度
+- **循环重试**：数据源失败时自动循环重试多轮
+- **容错机制**：前端轮询错误处理，避免连续失败
+- **响应式设计**：H5端完美适配移动设备
+
+---
+
+## 🛠️ 技术栈
+
+### 后端
+- **框架**: NestJS 10.x (Node.js 20+)
+- **数据库**: MySQL 8.0
+- **ORM**: Prisma 5.x
+- **缓存**: Redis 7.x
+- **定时任务**: @nestjs/schedule
+- **认证**: JWT (Passport)
+- **文档**: Swagger/OpenAPI
+
+### 前端 (H5)
+- **框架**: Vue 3 + TypeScript
+- **构建工具**: Vite 5.x
+- **UI组件**: Vant 4.x
+- **状态管理**: Pinia
+- **HTTP客户端**: Axios
+- **样式**: Less + CSS3
+
+### 管理端
+- **框架**: Vue 3 + TypeScript
+- **构建工具**: Vite 5.x
+- **UI组件**: Element Plus
+- **图表**: ECharts 5.x
+- **HTTP客户端**: Axios
+
+### DevOps
+- **容器化**: Docker + Docker Compose
+- **反向代理**: Nginx
+- **进程管理**: PM2
+- **CI/CD**: 一键部署脚本
+
+---
+
+## 📁 项目结构
 
 ```
 score-system/
-├── README.md                    # 主说明文档（当前文件）
-├── docs/                        # 📚 完整文档
-│   ├── 项目总览.md
-│   ├── 数据库设计.md
-│   ├── API接口文档.md
-│   ├── 业务规则详解.md
-│   ├── 前端H5开发指南.md
-│   ├── 前端管理后台开发指南.md
-│   └── 后端开发指南.md
+├── backend/                    # 后端服务
+│   ├── src/
+│   │   ├── modules/
+│   │   │   ├── auth/          # 认证模块
+│   │   │   ├── user/          # 用户模块
+│   │   │   ├── bet/           # 投注模块
+│   │   │   ├── lottery/       # 开奖模块
+│   │   │   ├── system/        # 系统配置
+│   │   │   └── message/       # 消息公告
+│   │   ├── common/            # 公共模块
+│   │   ├── prisma/            # Prisma配置
+│   │   └── main.ts            # 入口文件
+│   ├── prisma/
+│   │   ├── schema.prisma      # 数据库模型
+│   │   └── seed.ts            # 初始数据
+│   ├── Dockerfile
+│   └── package.json
 │
-├── frontend-h5/                 # 📱 H5用户端
-│   ├── README.md               # H5项目说明
-│   ├── package.json
-│   └── src/
+├── frontend-h5/                # H5用户端
+│   ├── src/
+│   │   ├── views/             # 页面组件
+│   │   ├── components/        # 公共组件
+│   │   ├── api/               # API接口
+│   │   ├── stores/            # 状态管理
+│   │   ├── router/            # 路由配置
+│   │   └── main.ts
+│   ├── Dockerfile
+│   └── package.json
 │
-├── frontend-admin/              # 💻 PC管理后台
-│   ├── README.md               # 管理后台项目说明
-│   ├── package.json
-│   └── src/
+├── frontend-admin/             # 管理后台
+│   ├── src/
+│   │   ├── views/             # 页面组件
+│   │   ├── components/        # 公共组件
+│   │   ├── api/               # API接口
+│   │   ├── router/            # 路由配置
+│   │   └── main.ts
+│   ├── Dockerfile
+│   └── package.json
 │
-└── backend/                     # ⚙️ 后端API
-    ├── README.md               # 后端项目说明
-    ├── package.json
-    ├── prisma/
-    └── src/
+├── docker-compose.yml          # Docker编排配置
+├── .env.example               # 环境变量示例
+├── deploy-backend.sh          # 后端部署脚本
+├── deploy-h5.sh               # H5部署脚本
+├── deploy-admin.sh            # 管理端部署脚本
+├── deploy-all.sh              # 一键全部署
+└── README.md
 ```
 
 ---
 
 ## 🚀 快速开始
 
-### 1. 克隆项目（或创建新目录）
+### 前置要求
+
+- Docker 20.10+
+- Docker Compose 2.0+
+- Node.js 20+ (本地开发)
+- MySQL 8.0+ (本地开发)
+
+### 方式一：Docker 一键部署（推荐）
+
+#### 1. 克隆项目
 
 ```bash
-mkdir score-system
+git clone <repository-url>
 cd score-system
 ```
 
-### 2. 阅读文档
+#### 2. 配置环境变量
 
-在开始开发前，请先阅读 `docs/` 目录下的文档：
-
-1. **必读文档**（按顺序）：
-   - [项目总览.md](./docs/项目总览.md) - 了解整体架构和功能
-   - [业务规则详解.md](./docs/业务规则详解.md) - 理解核心业务逻辑
-   - [数据库设计.md](./docs/数据库设计.md) - 了解数据结构
-   - [API接口文档.md](./docs/API接口文档.md) - 了解接口定义
-
-2. **开发文档**（按需阅读）：
-   - [前端H5开发指南.md](./docs/前端H5开发指南.md) - H5端开发
-   - [前端管理后台开发指南.md](./docs/前端管理后台开发指南.md) - 管理后台开发
-   - [后端开发指南.md](./docs/后端开发指南.md) - 后端开发
-
-### 3. 初始化各个子项目
-
-#### 3.1 初始化前端H5
 ```bash
-cd frontend-h5
-pnpm install
-pnpm dev
+cp .env.example .env
+# 编辑 .env 文件，配置数据库密码、JWT密钥等
 ```
 
-详见：[frontend-h5/README.md](./frontend-h5/README.md)
+#### 3. 一键启动
 
-#### 3.2 初始化管理后台
 ```bash
-cd frontend-admin
-pnpm install
-pnpm dev
-```
-
-详见：[frontend-admin/README.md](./frontend-admin/README.md)
-
-#### 3.3 初始化后端
-```bash
-cd backend
-pnpm install
-npx prisma generate
-npx prisma migrate dev
-pnpm start:dev
-```
-
-详见：[backend/README.md](./backend/README.md)
-
----
-
-## 🛠️ 技术栈
-
-### 前端H5用户端
-- Vue 3 + TypeScript
-- Vant UI 4.x
-- Vite 5.x
-- Pinia + Vue Router
-
-### 前端管理后台
-- Vue 3 + TypeScript
-- Element Plus 2.x
-- ECharts 5
-- Vite 5.x
-- Pinia + Vue Router
-
-### 后端API
-- NestJS 10.x
-- TypeScript 5.x
-- Prisma ORM
-- MySQL 8.0
-- Redis 7.x
-- BullMQ
-
----
-
-## 🎯 核心功能
-
-### 📱 H5用户端
-- ✅ 用户登录/注册
-- ✅ 下注首页（倍数下注 + 组合下注）
-- ✅ 开奖历史查询
-- ✅ 积分记录查询
-- ✅ 个人信息管理
-
-### 💻 PC管理后台
-- ✅ 管理员登录
-- ✅ 首页统计（盈亏分析）
-- ✅ 用户管理（新增/编辑/禁用/积分调整）
-- ✅ 开奖历史管理
-- ✅ 下单记录查询（实时刷新）
-- ✅ 积分记录查询
-- ✅ 模式设置（手续费/下注范围）
-- ✅ 网站设置（游戏开关/数据清理）
-
-### ⚙️ 后端API
-- ✅ 用户认证（JWT）
-- ✅ 下注管理
-- ✅ 开奖数据同步
-- ✅ 积分管理
-- ✅ 统计报表
-- ✅ 系统配置
-
----
-
-## 📊 业务规则简介
-
-### 回本判定（倍数下注核心规则）
-满足以下任一条件即为"回本"：
-1. **对子**：三个号码中有两个相同
-2. **豹子**：三个号码完全相同
-3. **顺子**：三个号码连续（包括089、019特殊顺子）
-4. **总和13或14**：开奖总和等于13或14
-
-### 倍数下注
-- 回本：返还下注 - 手续费
-- 不回本：损失80%下注 + 手续费
-
-### 组合下注
-- 中奖：返还下注 - 手续费
-- 不中奖：损失全部下注
-
-详细规则请查看：[docs/业务规则详解.md](./docs/业务规则详解.md)
-
----
-
-## 🗄️ 数据库
-
-### 核心数据表（8张）
-1. `users` - 用户表
-2. `admins` - 管理员表
-3. `lottery_results` - 开奖结果表
-4. `bets` - 下注记录表
-5. `point_records` - 积分记录表
-6. `bet_settings` - 下注设置表
-7. `system_settings` - 系统设置表
-8. `admin_logs` - 管理员操作日志表
-
-详细设计请查看：[docs/数据库设计.md](./docs/数据库设计.md)
-
----
-
-## 📡 API接口
-
-### 用户端接口
-- `POST /api/user/login` - 用户登录
-- `GET /api/user/info` - 获取用户信息
-- `POST /api/user/bet` - 提交下注
-- `GET /api/user/bet-history` - 下注历史
-- `GET /api/user/point-records` - 积分记录
-
-### 管理端接口
-- `POST /api/admin/login` - 管理员登录
-- `GET /api/admin/users` - 用户列表
-- `POST /api/admin/users` - 创建用户
-- `PUT /api/admin/users/:id/points` - 调整积分
-- `GET /api/admin/bets` - 下单记录
-- `GET /api/admin/statistics` - 统计数据
-
-完整接口文档：[docs/API接口文档.md](./docs/API接口文档.md)
-
----
-
-## 🔧 开发环境配置
-
-### 环境要求
-- Node.js 18+
-- pnpm 8+
-- MySQL 8.0+
-- Redis 7+
-
-### 安装pnpm
-```bash
-npm install -g pnpm
-```
-
-### 配置数据库
-```bash
-# 登录MySQL
-mysql -u root -p
-
-# 创建数据库
-CREATE DATABASE score_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-# 创建用户（可选）
-CREATE USER 'scoreuser'@'localhost' IDENTIFIED BY 'your_password';
-GRANT ALL PRIVILEGES ON score_system.* TO 'scoreuser'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-### 配置Redis
-```bash
-# 启动Redis
-redis-server
-
-# 测试连接
-redis-cli ping
-```
-
----
-
-## 📝 开发规范
-
-### Git提交规范
-```
-feat: 新功能
-fix: 修复bug
-docs: 文档更新
-style: 代码格式
-refactor: 重构
-test: 测试
-chore: 构建/工具
-```
-
-### 代码规范
-- 使用 ESLint + Prettier
-- TypeScript 严格模式
-- 组件命名 PascalCase
-- 函数命名 camelCase
-- 常量命名 UPPER_SNAKE_CASE
-
----
-
-## 🚢 部署
-
-### 🐳 Docker 部署（推荐）
-
-**一键启动所有服务！**
-
-#### Windows 用户
-```bash
-# 双击运行
-start.bat
-```
-
-#### macOS / Linux 用户
-```bash
-# 赋予执行权限
-chmod +x start.sh
-
-# 运行启动脚本
-./start.sh
-```
-
-#### 使用 Docker Compose
-```bash
-# 复制环境配置
-cp env.example .env
-
-# 启动所有服务（后端 + 管理后台 + H5前端 + MySQL + Redis）
+# 启动所有服务
 docker-compose up -d
 
 # 查看服务状态
@@ -304,134 +187,464 @@ docker-compose ps
 docker-compose logs -f
 ```
 
-**访问地址：**
-- H5 用户端: http://localhost:8081
-- 管理后台: http://localhost:8080
-- 后端 API: http://localhost:3000
-- API 文档: http://localhost:3000/api-docs
+#### 4. 初始化数据库
 
-**详细文档：**
-- 📖 [Docker 部署完整指南](./DOCKER_DEPLOY.md)
-- 🚀 [快速开始指南](./QUICK_START.md)
-
-### 传统部署方式
-
-#### 前端部署
 ```bash
-# 打包
-cd frontend-h5 && pnpm build
-cd frontend-admin && pnpm build
+# 进入后端容器
+docker exec -it score-system-backend sh
 
-# 上传到服务器（Nginx）
+# 运行数据库迁移
+npx prisma migrate deploy
+
+# 初始化种子数据
+npx prisma db seed
+
+# 退出容器
+exit
 ```
 
-#### 后端部署
-```bash
-# 打包
-cd backend && pnpm build
+#### 5. 访问系统
 
-# 使用PM2管理
-pm2 start dist/main.js --name score-api
+- **H5用户端**: http://localhost:5173
+- **管理后台**: http://localhost:5174
+- **API文档**: http://localhost:3000/api-docs
+
+**默认管理员账号**:
+- 用户名: `admin`
+- 密码: `admin123`
+
+---
+
+### 方式二：本地开发
+
+#### 1. 安装依赖
+
+```bash
+# 后端
+cd backend
+npm install
+
+# H5前端
+cd ../frontend-h5
+npm install
+
+# 管理端
+cd ../frontend-admin
+npm install
+```
+
+#### 2. 配置数据库
+
+```bash
+# 创建数据库
+mysql -u root -p
+CREATE DATABASE score_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+# 配置 backend/.env
+DATABASE_URL="mysql://root:password@localhost:3306/score_system"
+```
+
+#### 3. 运行数据库迁移
+
+```bash
+cd backend
+npx prisma migrate dev
+npx prisma db seed
+```
+
+#### 4. 启动服务
+
+```bash
+# 后端（终端1）
+cd backend
+npm run start:dev
+
+# H5前端（终端2）
+cd frontend-h5
+npm run dev
+
+# 管理端（终端3）
+cd frontend-admin
+npm run dev
 ```
 
 ---
 
-## 📖 详细文档导航
+## 📦 部署指南
 
-### 快速开始
-| 文档 | 说明 | 路径 |
-|------|------|------|
-| 🚀 快速开始指南 | 3分钟快速启动项目 | [QUICK_START.md](./QUICK_START.md) |
-| 🐳 Docker部署指南 | 完整的Docker部署文档 | [DOCKER_DEPLOY.md](./DOCKER_DEPLOY.md) |
+### 生产环境部署
 
-### 业务文档
-| 文档 | 说明 | 路径 |
-|------|------|------|
-| 项目总览 | 整体架构、功能规划、技术栈 | [docs/项目总览.md](./docs/项目总览.md) |
-| 数据库设计 | 表结构、索引、关系、SQL | [docs/数据库设计.md](./docs/数据库设计.md) |
-| API接口文档 | 接口定义、请求响应、示例 | [docs/API接口文档.md](./docs/API接口文档.md) |
-| 业务规则详解 | 业务逻辑、计算公式、例子 | [docs/业务规则详解.md](./docs/业务规则详解.md) |
+#### 1. 服务器准备
 
-### 开发文档
-| 文档 | 说明 | 路径 |
-|------|------|------|
-| 前端H5开发指南 | H5项目配置、组件、页面 | [docs/前端H5开发指南.md](./docs/前端H5开发指南.md) |
-| 前端管理后台开发指南 | 管理后台配置、组件、页面 | [docs/前端管理后台开发指南.md](./docs/前端管理后台开发指南.md) |
-| 后端开发指南 | NestJS配置、模块、服务 | [docs/后端开发指南.md](./docs/后端开发指南.md) |
+```bash
+# 安装 Docker
+curl -fsSL https://get.docker.com | sh
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# 安装 Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+```
+
+#### 2. 上传项目
+
+```bash
+# 压缩项目
+tar -czf score-system.tar.gz score-system/
+
+# 上传到服务器
+scp score-system.tar.gz user@server:/root/
+
+# 解压
+ssh user@server
+cd /root
+tar -xzf score-system.tar.gz
+```
+
+#### 3. 配置环境变量
+
+```bash
+cd /root/score-system
+cp .env.example .env
+vim .env
+```
+
+**重要配置**:
+```env
+# 数据库
+MYSQL_ROOT_PASSWORD=你的强密码
+MYSQL_PASSWORD=你的强密码
+
+# JWT
+JWT_SECRET=你的随机密钥（至少32位）
+
+# 端口（可选）
+BACKEND_PORT=3000
+H5_PORT=5173
+ADMIN_PORT=5174
+```
+
+#### 4. 一键部署
+
+```bash
+# 赋予执行权限
+chmod +x deploy-*.sh
+
+# 部署所有服务
+./deploy-all.sh
+
+# 或分别部署
+./deploy-backend.sh   # 只部署后端
+./deploy-h5.sh        # 只部署H5
+./deploy-admin.sh     # 只部署管理端
+```
+
+#### 5. 初始化数据库
+
+```bash
+# 进入数据库容器
+docker exec -it score-system-mysql mysql -u root -p
+
+# 使用数据库
+USE score_system;
+
+# 修复 Decimal 字段精度（重要！）
+ALTER TABLE bets MODIFY COLUMN fee DECIMAL(10,2) NOT NULL DEFAULT 0.00;
+ALTER TABLE bets MODIFY COLUMN result_amount DECIMAL(10,2) NULL DEFAULT NULL;
+
+exit;
+```
+
+#### 6. 配置防火墙
+
+```bash
+# 允许HTTP/HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# 允许应用端口
+sudo ufw allow 3000/tcp
+sudo ufw allow 5173/tcp
+sudo ufw allow 5174/tcp
+
+sudo ufw enable
+```
+
+#### 7. 配置Nginx反向代理（可选）
+
+```nginx
+# /etc/nginx/sites-available/score-system
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # H5前端
+    location / {
+        proxy_pass http://localhost:5173;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # 管理后台
+    location /admin {
+        proxy_pass http://localhost:5174;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # API
+    location /api {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
 
 ---
 
-## 🎓 学习路径
+## 🔧 开发指南
 
-### 第1天：了解项目
-1. 阅读 [项目总览.md](./docs/项目总览.md)
-2. 阅读 [业务规则详解.md](./docs/业务规则详解.md)
-3. 熟悉业务流程
+### 后端开发
 
-### 第2天：数据库设计
-1. 阅读 [数据库设计.md](./docs/数据库设计.md)
-2. 创建数据库
-3. 运行数据库迁移
+#### 添加新模块
 
-### 第3天：API接口
-1. 阅读 [API接口文档.md](./docs/API接口文档.md)
-2. 启动后端项目
-3. 测试API接口
+```bash
+cd backend
+nest g module modules/your-module
+nest g controller modules/your-module
+nest g service modules/your-module
+```
 
-### 第4-5天：前端开发
-1. 阅读前端开发指南
-2. 启动前端项目
-3. 开发页面和功能
+#### 数据库迁移
+
+```bash
+# 创建迁移
+npx prisma migrate dev --name your_migration_name
+
+# 应用迁移
+npx prisma migrate deploy
+
+# 重置数据库
+npx prisma migrate reset
+```
+
+#### 运行测试
+
+```bash
+# 单元测试
+npm run test
+
+# E2E测试
+npm run test:e2e
+
+# 测试覆盖率
+npm run test:cov
+```
+
+### 前端开发
+
+#### 添加新页面
+
+```typescript
+// frontend-h5/src/router/index.ts
+{
+  path: '/your-page',
+  name: 'YourPage',
+  component: () => import('@/views/YourPage.vue'),
+  meta: { requiresAuth: true }
+}
+```
+
+#### 调用API
+
+```typescript
+// frontend-h5/src/api/your-api.ts
+import request from './request'
+
+export const yourApi = {
+  getData: () => request.get('/api/your-endpoint'),
+  postData: (data) => request.post('/api/your-endpoint', data),
+}
+```
+
+### 常用命令
+
+```bash
+# 查看日志
+docker-compose logs -f backend
+docker-compose logs -f frontend-h5
+docker-compose logs -f frontend-admin
+
+# 重启服务
+docker-compose restart backend
+docker-compose restart frontend-h5
+
+# 进入容器
+docker exec -it score-system-backend sh
+docker exec -it score-system-mysql mysql -u root -p
+
+# 清理数据
+docker-compose down -v  # ⚠️ 会删除所有数据
+```
 
 ---
 
-## 🆘 常见问题
+## 📖 API文档
 
-### Q1: 如何启动项目？
-A: 按照上面的"快速开始"章节，依次启动后端、前端H5、管理后台。
+### Swagger文档
 
-### Q2: 数据库连接失败？
-A: 检查 `backend/.env` 中的 `DATABASE_URL` 配置是否正确。
+启动后端服务后，访问：
+```
+http://localhost:3000/api-docs
+```
 
-### Q3: 前端跨域问题？
-A: 在 `vite.config.ts` 中配置了代理，开发环境不会有跨域问题。
+### 主要API端点
 
-### Q4: 如何修改手续费比例？
-A: 在管理后台的"模式设置"中修改，或直接修改数据库 `bet_settings` 表。
+#### 认证
+- `POST /api/auth/login` - 用户登录
+- `POST /api/auth/admin/login` - 管理员登录
+- `POST /api/auth/register` - 用户注册
+
+#### 用户
+- `GET /api/user/profile` - 获取个人信息
+- `PUT /api/user/profile` - 更新个人信息
+- `GET /api/user/bet-history` - 投注历史
+- `GET /api/user/point-records` - 积分记录
+
+#### 投注
+- `POST /api/user/bet` - 创建投注
+- `DELETE /api/user/cancel-bet` - 取消投注
+- `GET /api/user/current-issue-bets` - 当前期投注
+
+#### 开奖
+- `GET /api/lottery/current-issue` - 当前期信息
+- `GET /api/lottery/results` - 开奖历史
+- `GET /api/lottery/countdown` - 倒计时
+
+#### 管理端
+- `GET /api/admin/users` - 用户列表
+- `POST /api/admin/users/:id/adjust-points` - 调整积分
+- `GET /api/admin/bets` - 投注记录
+- `GET /api/admin/statistics` - 统计数据
 
 ---
 
-## 📞 技术支持
+## ❓ 常见问题
 
-- 查看文档：[docs/](./docs/)
-- 查看代码注释
-- 查看API文档：启动后端后访问 http://localhost:3000/api-docs
+### Q: Docker 容器启动失败？
+
+**A**: 检查端口占用和日志
+
+```bash
+# 查看端口占用
+sudo lsof -i :3000
+sudo lsof -i :5173
+sudo lsof -i :5174
+
+# 查看容器日志
+docker-compose logs backend
+```
+
+### Q: 数据库连接失败？
+
+**A**: 检查配置和容器状态
+
+```bash
+# 查看容器状态
+docker-compose ps
+
+# 测试数据库连接
+docker exec -it score-system-mysql mysql -u root -p
+
+# 检查环境变量
+docker exec score-system-backend env | grep DATABASE
+```
+
+### Q: 前端API请求失败？
+
+**A**: 检查后端服务和API地址
+
+```bash
+# 检查后端是否运行
+curl http://localhost:3000/api-docs
+
+# 检查前端环境变量
+cat frontend-h5/.env.production
+```
+
+### Q: 手续费/结算金额显示不正确？
+
+**A**: 执行数据库字段修复
+
+```sql
+USE score_system;
+
+-- 修复 fee 字段
+ALTER TABLE bets MODIFY COLUMN fee DECIMAL(10,2) NOT NULL DEFAULT 0.00;
+
+-- 修复 result_amount 字段
+ALTER TABLE bets MODIFY COLUMN result_amount DECIMAL(10,2) NULL DEFAULT NULL;
+```
+
+### Q: 数据源切换不生效？
+
+**A**: 检查数据源配置
+
+```bash
+# 查看数据源日志
+docker logs -f score-system-backend | grep "数据源"
+
+# 手动触发同步
+curl -X POST http://localhost:3000/api/admin/lottery/sync \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Q: 如何清空测试数据？
+
+**A**: 使用管理端的清空功能或手动清理
+
+```bash
+# 进入数据库
+docker exec -it score-system-mysql mysql -u root -p
+
+USE score_system;
+
+-- 清空投注记录
+TRUNCATE TABLE bets;
+
+-- 清空开奖记录
+TRUNCATE TABLE lottery_results;
+
+-- 清空积分记录
+TRUNCATE TABLE point_records;
+
+-- 重置用户积分
+UPDATE users SET points = 10000 WHERE role = 'user';
+```
 
 ---
 
 ## 📄 许可证
 
-MIT License
+本项目仅供学习交流使用。
 
 ---
 
-## 🎉 开始开发
+## 👥 贡献
 
-现在你已经了解了项目的基本信息，让我们开始开发吧！
-
-**推荐步骤**：
-1. ✅ 阅读所有文档（docs/ 目录）
-2. ✅ 配置开发环境（Node.js、MySQL、Redis）
-3. ✅ 创建数据库
-4. ✅ 启动后端项目
-5. ✅ 启动前端项目
-6. ✅ 开始开发功能
+欢迎提交 Issue 和 Pull Request！
 
 ---
 
-**项目版本**：v1.0  
-**创建日期**：2024年11月26日  
-**最后更新**：2024年11月26日
+## 📞 联系方式
 
-祝你开发愉快！🚀
+如有问题，请通过以下方式联系：
 
+- Issue: [GitHub Issues](https://github.com/your-repo/issues)
+- Email: your-email@example.com
+
+---
+
+**最后更新**: 2025-11-30

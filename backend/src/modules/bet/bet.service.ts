@@ -197,6 +197,12 @@ export class BetService {
       // ⚠️ 使用 Prisma.Decimal 确保精确存储
       const feeDecimal = new Prisma.Decimal(fee.toFixed(2));
       console.log(`💾 准备存储到数据库: fee = ${fee} -> Decimal("${fee.toFixed(2)}") (类型: Prisma.Decimal)`);
+      console.log(`   feeDecimal 详细信息:`, {
+        value: feeDecimal,
+        toString: feeDecimal.toString(),
+        toNumber: feeDecimal.toNumber(),
+        toFixed2: feeDecimal.toFixed(2),
+      });
       
       const bet = await tx.bet.create({
         data: {
@@ -212,6 +218,11 @@ export class BetService {
       });
       
       console.log(`✅ 已存储到数据库: bet.id=${bet.id}, fee=${bet.fee} (类型: ${typeof bet.fee}, 原始值: ${JSON.stringify(bet.fee)})`);
+      console.log(`   bet.fee 详细信息:`, {
+        value: bet.fee,
+        toString: bet.fee?.toString(),
+        constructor: bet.fee?.constructor?.name,
+      });
 
       // 注意：下注时不创建 PointRecord，只在结算时创建
 
@@ -302,8 +313,7 @@ export class BetService {
 
     const lotteryMap = new Map(lotteryResults.map(l => [l.issue, l]));
     const listWithLottery = paginatedBets.map(bet => {
-      // 调试日志
-      console.log(`📋 返回下注记录: issue=${bet.issue}, amount=${bet.amount}, fee=${bet.fee}, betCount=${bet.betCount}`);
+
       
       return {
         ...bet,

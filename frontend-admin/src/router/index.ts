@@ -56,6 +56,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/SystemSettings.vue'),
         meta: { title: '网站设置', icon: 'Tools' },
       },
+      {
+        path: 'messages',
+        name: 'Messages',
+        component: () => import('@/views/MessageList.vue'),
+        meta: { title: '留言管理', icon: 'ChatDotRound' },
+      },
     ],
   },
 ]

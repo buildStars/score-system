@@ -50,6 +50,18 @@
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- 用户总积分 -->
+    <el-row :gutter="20" class="core-stats" style="margin-top: 20px;">
+      <el-col :span="24">
+        <el-card shadow="hover">
+          <div class="stat-item">
+            <div class="stat-label">用户总积分（实时存量）</div>
+            <div class="stat-value points">{{ formatMoney(statistics?.summary.totalUserPoints || 0) }}</div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
@@ -174,6 +186,10 @@ onMounted(() => {
 
         &.loss {
           color: #f56c6c;
+        }
+
+        &.points {
+          color: #e6a23c;
         }
       }
     }
