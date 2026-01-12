@@ -137,6 +137,13 @@ async function main() {
   // 3. 初始化系统设置
   const systemSettings = [
     {
+      settingKey: 'game_enabled',
+      settingName: '游戏开关',
+      settingValue: 'true',
+      description: '控制是否允许用户下注',
+      valueType: 'boolean',
+    },
+    {
       settingKey: 'site_title',
       settingName: '网站标题',
       settingValue: '计分系统',
