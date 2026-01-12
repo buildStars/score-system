@@ -74,5 +74,19 @@ export class BetController {
   ) {
     return this.betService.getBetSummary(issue, userId);
   }
+
+  @Get('admin/bets/user-summary')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @ApiOperation({ summary: '获取单用户日期范围内的下注汇总' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  async getUserBetSummary(
+    @Query('userId') userId?: number,
+    @Query('username') username?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.betService.getUserBetSummary(userId, username, startDate, endDate);
+  }
 }
 

@@ -10,6 +10,7 @@ import { PointModule } from './modules/point/point.module';
 import { SystemModule } from './modules/system/system.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { MessageModule } from './modules/message/message.module';
+import { TelegramModule } from './modules/telegram/telegram.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { MessageModule } from './modules/message/message.module';
     SystemModule,
     AdminModule,
     MessageModule,
+    TelegramModule,
   ],
 })
 export class AppModule {}

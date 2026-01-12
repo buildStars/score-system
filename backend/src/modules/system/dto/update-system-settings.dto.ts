@@ -55,5 +55,27 @@ export class UpdateSystemSettingsDto {
   @IsOptional()
   @IsNumber()
   warningTime?: number;
+
+  // ==================== Telegram 配置 ====================
+
+  @ApiProperty({ description: 'Telegram 通知开关', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_enabled?: string;
+
+  @ApiProperty({ description: 'Telegram Bot Token', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_bot_token?: string;
+
+  @ApiProperty({ description: 'Telegram Chat ID', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_chat_id?: string;
+
+  @ApiProperty({ description: 'Telegram 上报汇率（金额除以此值后上报）', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_rate?: string;
 }
 

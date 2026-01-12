@@ -71,3 +71,19 @@ export function updateBetTypeSetting(betType: string, data: Partial<BetTypeSetti
 export function batchUpdateBetTypeSettings(settings: Array<Partial<BetTypeSetting> & { betType: string }>) {
   return request.post('/admin/bet-type-settings/batch', { settings })
 }
+
+// ==================== Telegram 配置 ====================
+
+/**
+ * 测试 Telegram 连接
+ */
+export function testTelegramConnection() {
+  return request.post<{ success: boolean; message: string }>('/admin/telegram/test')
+}
+
+/**
+ * 发送 Telegram 消息
+ */
+export function sendTelegramMessage(message: string) {
+  return request.post<{ success: boolean; message: string }>('/admin/telegram/send', { message })
+}

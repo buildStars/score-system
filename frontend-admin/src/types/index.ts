@@ -143,6 +143,12 @@ export interface SystemSettings {
   autoSettleEnabled: boolean
   drawInterval: number // 开奖间隔时间（秒）
   closeBeforeDraw: number // 封盘时间（秒，0表示不封盘）
+  // Telegram 配置
+  telegram_enabled?: string
+  telegram_bot_token?: string
+  telegram_chat_id?: string
+  // 允许其他动态字段
+  [key: string]: any
 }
 
 /**

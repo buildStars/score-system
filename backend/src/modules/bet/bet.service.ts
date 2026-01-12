@@ -7,6 +7,7 @@ import {
   calculateMinimumBalance 
 } from '../lottery/utils/lottery-rules.util';
 import { LotteryCountdownService } from '../lottery/lottery-countdown.service';
+import { TelegramService } from '../telegram/telegram.service';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class BetService {
   constructor(
     private prisma: PrismaService,
     private countdownService: LotteryCountdownService,
+    private telegramService: TelegramService,
   ) {}
 
   /**
@@ -225,6 +227,23 @@ export class BetService {
       });
 
       // 注意：下注时不创建 PointRecord，只在结算时创建
+
+      // 发送 Telegram 通知（异步，不阻塞返回）
+      this.telegramService.sendBetNotification(
+        {
+          issue: bet.issue,
+          betType: bet.betType,
+          betContent: bet.betContent,
+          amount: Number(bet.amount),
+        },
+        {
+          id: user.id,
+          username: user.username,
+          nickname: user.nickname,
+        },
+      ).catch(err => {
+        console.error('Telegram 通知发送失败:', err);
+      });
 
       return {
         betId: bet.id,
@@ -814,6 +833,22 @@ export class BetService {
       // 不需要创建 PointRecord
     });
 
+    // 8. 发送 Telegram 取消通知（倍数 + 组合，不含大小单双）
+    const cancelledAmount = bets.reduce((sum, bet) => sum + Number(bet.amount), 0);
+    this.telegramService.sendCancelBetNotification(
+      issue,
+      betType,
+      betContent,
+      cancelledAmount,
+      {
+        id: user.id,
+        username: user.username,
+        nickname: user.nickname,
+      },
+    ).catch(err => {
+      console.error('Telegram 取消通知发送失败:', err);
+    });
+
     return {
       message: '取消成功',
       cancelledCount: bets.length,
@@ -879,6 +914,148 @@ export class BetService {
     }
 
     return summary;
+  }
+
+  /**
+   * 获取单用户日期范围内的下注汇总
+   * 支持通过userId或username（模糊搜索）查找用户
+   * 返回格式：
+   * {
+   *   summary: "5000倍 5000大单 5000小双 1000大",
+   *   details: { multiple: 5000, '大单': 5000, '小双': 5000, '大': 1000 },
+   *   totalAmount: 16000,
+   *   totalBets: 50,
+   *   user: { id, username, nickname }
+   * }
+   */
+  async getUserBetSummary(userId?: number, username?: string, startDate?: string, endDate?: string) {
+    let user = null;
+
+    // 优先通过userId查找
+    if (userId) {
+      user = await this.prisma.user.findUnique({
+        where: { id: Number(userId) },
+        select: {
+          id: true,
+          username: true,
+          nickname: true,
+        },
+      });
+    } 
+    // 通过username模糊搜索（支持用户名或昵称）
+    else if (username) {
+      user = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { username: { contains: username } },
+            { nickname: { contains: username } },
+          ],
+        },
+        select: {
+          id: true,
+          username: true,
+          nickname: true,
+        },
+      });
+    }
+
+    if (!user) {
+      return {
+        summary: '',
+        details: {},
+        totalAmount: 0,
+        totalBets: 0,
+        user: null,
+        message: userId ? '未找到该用户ID' : (username ? '未找到匹配的用户' : '请输入用户ID或用户名'),
+      };
+    }
+
+    // 构建查询条件
+    const where: any = {
+      userId: user.id,
+      status: { not: 'cancelled' }, // 排除已取消的下注
+    };
+
+    // 日期范围筛选
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        // 开始日期从当天 00:00:00 开始
+        where.createdAt.gte = new Date(startDate + 'T00:00:00');
+      }
+      if (endDate) {
+        // 结束日期到当天 23:59:59 结束
+        where.createdAt.lte = new Date(endDate + 'T23:59:59');
+      }
+    }
+
+    // 查询所有符合条件的下注记录
+    const bets = await this.prisma.bet.findMany({
+      where,
+      select: {
+        betType: true,
+        betContent: true,
+        amount: true,
+      },
+    });
+
+    // 按类型汇总
+    const details: Record<string, number> = {};
+    let totalMultiple = 0; // 累加所有倍数类型的金额
+    let totalAmount = 0;
+
+    for (const bet of bets) {
+      const amount = Number(bet.amount);
+      totalAmount += amount;
+
+      if (bet.betType === 'multiple') {
+        // 倍数类型：累加金额
+        totalMultiple += amount;
+      } else {
+        // 组合类型：按 betContent 分组累加
+        const key = bet.betContent; // 如：大、小、单、双、大单、大双、小单、小双
+        if (!details[key]) {
+          details[key] = 0;
+        }
+        details[key] += amount;
+      }
+    }
+
+    // 如果有倍数类型的下注，添加到结果中
+    if (totalMultiple > 0) {
+      details['multiple'] = totalMultiple;
+    }
+
+    // 构建汇总字符串，格式：5000倍 5000大单 5000小双 1000大
+    const summaryParts: string[] = [];
+    
+    // 定义显示顺序
+    const displayOrder = ['multiple', '大', '小', '单', '双', '大单', '大双', '小单', '小双'];
+    
+    for (const key of displayOrder) {
+      if (details[key]) {
+        if (key === 'multiple') {
+          summaryParts.push(`${details[key]}倍`);
+        } else {
+          summaryParts.push(`${details[key]}${key}`);
+        }
+      }
+    }
+
+    // 添加其他可能未在顺序中的类型
+    for (const [key, value] of Object.entries(details)) {
+      if (!displayOrder.includes(key) && value > 0) {
+        summaryParts.push(`${value}${key}`);
+      }
+    }
+
+    return {
+      summary: summaryParts.join(' '),
+      details,
+      totalAmount: Number(totalAmount.toFixed(2)),
+      totalBets: bets.length,
+      user,
+    };
   }
 
   /**

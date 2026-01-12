@@ -32,3 +32,24 @@ export const getBetSummary = (params?: {
   return request.get<any, ApiResponse<Record<string, number>>>('/admin/bets/summary', { params })
 }
 
+/**
+ * 获取单用户日期范围内的下注汇总
+ * 支持通过userId或username（模糊搜索）查找用户
+ * @returns 返回格式：{ summary: "5000倍 5000大单", details: {...}, totalAmount, totalBets, user }
+ */
+export const getUserBetSummary = (params: {
+  userId?: number
+  username?: string
+  startDate?: string
+  endDate?: string
+}) => {
+  return request.get<any, ApiResponse<{
+    summary: string
+    details: Record<string, number>
+    totalAmount: number
+    totalBets: number
+    user: { id: number; username: string; nickname: string } | null
+    message?: string
+  }>>('/admin/bets/user-summary', { params })
+}
+

@@ -125,11 +125,11 @@ const handleMenuSelect = () => {
   }
 }
 
-// 菜单路由（从 router 的 children 中过滤）
+// 菜单路由（从 router 的 children 中过滤，排除 hidden 的路由）
 const menuRoutes = computed(() => {
   return router.options.routes
     .find((r) => r.path === '/')
-    ?.children?.filter((child) => child.meta?.title) || []
+    ?.children?.filter((child) => child.meta?.title && !child.meta?.hidden) || []
 })
 
 // 当前激活的菜单

@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StatisticsQueryDto } from './dto/statistics-query.dto';
 import { QueryAdminLogDto } from './dto/query-admin-log.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AdminService {
@@ -249,6 +250,78 @@ export class AdminService {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  /**
+   * 修改管理员密码
+   */
+  async changePassword(adminId: number, oldPassword: string, newPassword: string) {
+    // 查找管理员
+    const admin = await this.prisma.admin.findUnique({
+      where: { id: adminId },
+    });
+
+    if (!admin) {
+      throw new BadRequestException('管理员不存在');
+    }
+
+    // 验证原密码
+    const isPasswordValid = await bcrypt.compare(oldPassword, admin.password);
+    if (!isPasswordValid) {
+      throw new BadRequestException('原密码错误');
+    }
+
+    // 新密码不能与原密码相同
+    const isSamePassword = await bcrypt.compare(newPassword, admin.password);
+    if (isSamePassword) {
+      throw new BadRequestException('新密码不能与原密码相同');
+    }
+
+    // 加密新密码
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // 更新密码
+    await this.prisma.admin.update({
+      where: { id: adminId },
+      data: { password: hashedPassword },
+    });
+
+    // 记录操作日志
+    await this.prisma.adminLog.create({
+      data: {
+        adminId: admin.id,
+        adminUsername: admin.username,
+        action: 'change_password',
+        description: '修改密码',
+      },
+    });
+
+    return { message: '密码修改成功' };
+  }
+
+  /**
+   * 获取管理员信息
+   */
+  async getProfile(adminId: number) {
+    const admin = await this.prisma.admin.findUnique({
+      where: { id: adminId },
+      select: {
+        id: true,
+        username: true,
+        realName: true,
+        role: true,
+        status: true,
+        lastLoginAt: true,
+        lastLoginIp: true,
+        createdAt: true,
+      },
+    });
+
+    if (!admin) {
+      throw new BadRequestException('管理员不存在');
+    }
+
+    return admin;
   }
 }
 

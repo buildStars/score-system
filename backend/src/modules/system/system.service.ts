@@ -116,10 +116,18 @@ export class SystemService {
         // 所有值都转换为字符串（数据库中 settingValue 是 String 类型）
         const settingValue = String(value);
         
+        // 使用 upsert：如果存在则更新，不存在则创建
         updates.push(
-          this.prisma.systemSetting.update({
+          this.prisma.systemSetting.upsert({
             where: { settingKey },
-            data: { settingValue },
+            update: { settingValue },
+            create: { 
+              settingKey, 
+              settingName: key, // 配置名称
+              settingValue,
+              valueType: 'string',
+              description: `动态配置: ${key}`,
+            },
           }),
         );
       }

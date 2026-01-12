@@ -39,6 +39,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '下单记录', icon: 'Document' },
       },
       {
+        path: 'user-bet-summary',
+        name: 'UserBetSummary',
+        component: () => import('@/views/UserBetSummary.vue'),
+        meta: { title: '用户投注汇总', icon: 'DataLine' },
+      },
+      {
         path: 'point-records',
         name: 'PointRecords',
         component: () => import('@/views/PointRecords.vue'),
@@ -57,10 +63,22 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '网站设置', icon: 'Tools' },
       },
       {
+        path: 'telegram-settings',
+        name: 'TelegramSettings',
+        component: () => import('@/views/TelegramSettings.vue'),
+        meta: { title: 'Telegram配置', icon: 'ChatDotRound', hidden: true },
+      },
+      {
         path: 'messages',
         name: 'Messages',
         component: () => import('@/views/MessageList.vue'),
         meta: { title: '留言管理', icon: 'ChatDotRound' },
+      },
+      {
+        path: 'change-password',
+        name: 'ChangePassword',
+        component: () => import('@/views/ChangePassword.vue'),
+        meta: { title: '修改密码', icon: 'Lock' },
       },
     ],
   },
