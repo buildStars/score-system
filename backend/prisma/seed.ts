@@ -136,6 +136,7 @@ async function main() {
 
   // 3. 初始化系统设置
   const systemSettings = [
+    // ===== 核心开关 =====
     {
       settingKey: 'game_enabled',
       settingName: '游戏开关',
@@ -143,6 +144,22 @@ async function main() {
       description: '控制是否允许用户下注',
       valueType: 'boolean',
     },
+    {
+      settingKey: 'auto_settle_enabled',
+      settingName: '自动结算开关',
+      settingValue: 'true',
+      description: '开奖后自动结算下注，关闭后需手动结算',
+      valueType: 'boolean',
+    },
+    {
+      settingKey: 'maintenance_mode',
+      settingName: '维护模式',
+      settingValue: 'false',
+      description: '开启后系统进入维护状态',
+      valueType: 'boolean',
+    },
+    
+    // ===== 网站信息 =====
     {
       settingKey: 'site_title',
       settingName: '网站标题',
@@ -156,6 +173,59 @@ async function main() {
       settingValue: '一分耕耘，一分收获',
       description: '网站副标题，显示在H5首页',
       valueType: 'string',
+    },
+    {
+      settingKey: 'system_notice',
+      settingName: '系统公告',
+      settingValue: '',
+      description: '显示在H5首页的公告信息，为空则不显示',
+      valueType: 'string',
+    },
+    
+    // ===== 开奖与封盘配置 =====
+    {
+      settingKey: 'draw_interval',
+      settingName: '开奖间隔时间',
+      settingValue: '210',
+      description: '两期开奖之间的间隔时间（秒），默认210秒=3.5分钟',
+      valueType: 'number',
+    },
+    {
+      settingKey: 'close_before_draw',
+      settingName: '封盘时间',
+      settingValue: '30',
+      description: '开奖前多少秒封盘（0表示不封盘），默认30秒',
+      valueType: 'number',
+    },
+    
+    // ===== Telegram 通知配置 =====
+    {
+      settingKey: 'telegram_enabled',
+      settingName: 'Telegram通知开关',
+      settingValue: 'false',
+      description: '是否开启Telegram下注通知',
+      valueType: 'boolean',
+    },
+    {
+      settingKey: 'telegram_bot_token',
+      settingName: 'Telegram Bot Token',
+      settingValue: '',
+      description: 'Telegram机器人的Token，从@BotFather获取',
+      valueType: 'string',
+    },
+    {
+      settingKey: 'telegram_chat_id',
+      settingName: 'Telegram Chat ID',
+      settingValue: '',
+      description: '接收通知的群组或频道ID',
+      valueType: 'string',
+    },
+    {
+      settingKey: 'telegram_report_rate',
+      settingName: 'Telegram上报汇率',
+      settingValue: '100',
+      description: '金额除以此值后上报（如100表示1元=100积分）',
+      valueType: 'number',
     },
   ];
 

@@ -42,3 +42,4 @@ CMD ["sh", "-c", "echo '=== Starting app ===' && ls -la dist/src/ && npx prisma 
 
 
 
+
