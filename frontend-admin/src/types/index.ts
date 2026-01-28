@@ -211,8 +211,7 @@ export interface StatisticsData {
     totalLoss: number
     netProfit: number
   }>
-  previousDayStats?: {
-    date: string
+  returnStats?: {
     returnCount: number
     noReturnCount: number
   }

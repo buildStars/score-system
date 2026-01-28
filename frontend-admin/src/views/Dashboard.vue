@@ -3,16 +3,9 @@
     <!-- 日期选择器 -->
     <el-card class="date-selector" shadow="hover">
       <div class="date-picker-wrapper">
-        <el-date-picker
-          v-model="dateRange"
-          type="datetimerange"
-          range-separator="至"
-          start-placeholder="开始时间"
-          end-placeholder="结束时间"
-          format="YYYY-MM-DD HH:mm"
-          value-format="YYYY-MM-DD HH:mm:ss"
-          @change="fetchStatistics"
-        />
+        <el-date-picker v-model="dateRange" type="datetimerange" range-separator="至" start-placeholder="开始时间"
+          end-placeholder="结束时间" format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DD HH:mm:ss"
+          @change="fetchStatistics" />
         <el-button type="primary" size="small" @click="resetToDefault">
           重置为20点周期
         </el-button>
@@ -53,11 +46,11 @@
       <el-col :xs="24" :sm="6">
         <el-card shadow="hover">
           <div class="stat-item">
-            <div class="stat-label">昨日回本情况 ({{ statistics?.previousDayStats?.date || '统计中' }})</div>
+            <div class="stat-label">回本情况（所选周期）</div>
             <div class="stat-value return-stats">
-              <span class="profit">回{{ statistics?.previousDayStats?.returnCount || 0 }}</span>
+              <span class="profit">回{{ statistics?.returnStats?.returnCount || 0 }}</span>
               <span class="separator">/</span>
-              <span class="loss">不{{ statistics?.previousDayStats?.noReturnCount || 0 }}</span>
+              <span class="loss">不{{ statistics?.returnStats?.noReturnCount || 0 }}</span>
             </div>
           </div>
         </el-card>
@@ -90,10 +83,10 @@ import type { StatisticsData } from '@/types'
 const getDefaultDateRange = (): [string, string] => {
   const now = dayjs()
   const currentHour = now.hour()
-  
+
   let startTime: dayjs.Dayjs
   let endTime: dayjs.Dayjs
-  
+
   if (currentHour >= 20) {
     // 当前时间 >= 今天20点：显示今天20:00 - 明天20:00
     startTime = now.hour(20).minute(0).second(0)
@@ -103,7 +96,7 @@ const getDefaultDateRange = (): [string, string] => {
     startTime = now.subtract(1, 'day').hour(20).minute(0).second(0)
     endTime = now.hour(20).minute(0).second(0)
   }
-  
+
   return [
     startTime.format('YYYY-MM-DD HH:mm:ss'),
     endTime.format('YYYY-MM-DD HH:mm:ss'),
@@ -133,7 +126,7 @@ const fetchStatistics = async () => {
     console.log('📊 查询统计数据:')
     console.log('  开始时间:', dateRange.value[0])
     console.log('  结束时间:', dateRange.value[1])
-    
+
     const res = await getStatistics({
       startDate: dateRange.value[0],
       endDate: dateRange.value[1],
@@ -211,7 +204,7 @@ onMounted(() => {
           justify-content: center;
           align-items: center;
           gap: 8px;
-          
+
           .separator {
             color: #dcdfe6;
             font-size: 20px;
@@ -272,7 +265,3 @@ onMounted(() => {
   }
 }
 </style>
-
-
-
-
