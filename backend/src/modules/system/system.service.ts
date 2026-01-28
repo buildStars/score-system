@@ -155,7 +155,7 @@ export class SystemService {
     
     if (hasTimingUpdate) {
       try {
-        await this.countdownService.refreshSettings();
+        await this.countdownService.refresh();
         console.log('✅ 封盘配置已刷新');
       } catch (error) {
         console.error('刷新封盘配置失败:', error.message);

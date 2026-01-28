@@ -98,6 +98,69 @@ export class AdminService {
       dailyData,
       betTypeStats,
       userRanking,
+      previousDayStats: await this.getPreviousDayStats(),
+    };
+  }
+
+  /**
+   * 获取前一天统计（20:00为界）
+   * 27号20点00分统计前一天的（26号20点-27号20点）
+   */
+  private async getPreviousDayStats() {
+    const now = new Date();
+    const todayResultCyleEnd = new Date(now);
+    todayResultCyleEnd.setHours(20, 0, 0, 0);
+
+    let startTime: Date;
+    let endTime: Date;
+    let targetDateStr: string;
+
+    if (now >= todayResultCyleEnd) {
+      // 当前时间 >= 今天20点
+      // 统计区间：昨天20:00 - 今天20:00
+      endTime = new Date(todayResultCyleEnd);
+      startTime = new Date(endTime);
+      startTime.setDate(startTime.getDate() - 1);
+      targetDateStr = `${startTime.getMonth() + 1}月${startTime.getDate()}日-${endTime.getDate()}日`;
+    } else {
+      // 当前时间 < 今天20点
+      // 统计区间：前天20:00 - 昨天20:00
+      endTime = new Date(todayResultCyleEnd);
+      endTime.setDate(endTime.getDate() - 1);
+      startTime = new Date(endTime);
+      startTime.setDate(startTime.getDate() - 1);
+      targetDateStr = `${startTime.getMonth() + 1}月${startTime.getDate()}日-${endTime.getDate()}日`;
+    }
+
+    // 查询该时间段内的开奖结果
+    const results = await this.prisma.lotteryResult.groupBy({
+      by: ['isReturn'],
+      where: {
+        drawTime: {
+          gte: startTime,
+          lt: endTime,
+        },
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    let returnCount = 0;
+    let noReturnCount = 0;
+
+    results.forEach(r => {
+      if (r.isReturn === 1) {
+        returnCount = r._count.id;
+      } else {
+        noReturnCount += r._count.id;
+      }
+    });
+
+    return {
+      date: targetDateStr,
+      returnCount,
+      noReturnCount,
     };
   }
 

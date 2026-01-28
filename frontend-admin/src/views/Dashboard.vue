@@ -21,7 +21,7 @@
 
     <!-- 核心数据统计 -->
     <el-row :gutter="20" class="core-stats">
-      <el-col :xs="24" :sm="8">
+      <el-col :xs="24" :sm="6">
         <el-card shadow="hover">
           <div class="stat-item">
             <div class="stat-label">下注总额</div>
@@ -30,7 +30,7 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="8">
+      <el-col :xs="24" :sm="6">
         <el-card shadow="hover">
           <div class="stat-item">
             <div class="stat-label">手续费</div>
@@ -39,12 +39,25 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="8">
+      <el-col :xs="24" :sm="6">
         <el-card shadow="hover">
           <div class="stat-item">
             <div class="stat-label">总盈亏</div>
             <div class="stat-value" :class="totalProfit >= 0 ? 'profit' : 'loss'">
               {{ totalProfit >= 0 ? '+' : '' }}{{ formatMoney(totalProfit) }}
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+
+      <el-col :xs="24" :sm="6">
+        <el-card shadow="hover">
+          <div class="stat-item">
+            <div class="stat-label">昨日回本情况 ({{ statistics?.previousDayStats?.date || '统计中' }})</div>
+            <div class="stat-value return-stats">
+              <span class="profit">回{{ statistics?.previousDayStats?.returnCount || 0 }}</span>
+              <span class="separator">/</span>
+              <span class="loss">不{{ statistics?.previousDayStats?.noReturnCount || 0 }}</span>
             </div>
           </div>
         </el-card>
@@ -190,6 +203,19 @@ onMounted(() => {
 
         &.points {
           color: #e6a23c;
+        }
+
+        &.return-stats {
+          font-size: 24px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 8px;
+          
+          .separator {
+            color: #dcdfe6;
+            font-size: 20px;
+          }
         }
       }
     }

@@ -8,9 +8,10 @@ import { LotteryDataSourceManager } from './services/lottery-data-source.manager
 import { USA28DataSource } from './data-sources/usa28.data-source';
 import { JND28DataSource } from './data-sources/jnd28.data-source';
 import { DatabaseDataSource } from './data-sources/database.data-source';
+import { TelegramModule } from '../telegram/telegram.module';
 
 @Module({
-  imports: [HttpModule],
+  imports: [HttpModule, TelegramModule],
   controllers: [LotteryController],
   providers: [
     LotteryService,

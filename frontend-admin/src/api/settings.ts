@@ -87,3 +87,78 @@ export function testTelegramConnection() {
 export function sendTelegramMessage(message: string) {
   return request.post<{ success: boolean; message: string }>('/admin/telegram/send', { message })
 }
+
+// ==================== Telegram 用户账号配置 ====================
+
+/**
+ * 发送验证码到Telegram用户账号
+ */
+export function sendTelegramUserCode(phone: string) {
+  return request.post<{ success: boolean; phoneCodeHash?: string; message?: string }>(
+    '/admin/telegram/user/send-code',
+    { phone },
+  )
+}
+
+/**
+ * 使用验证码登录Telegram用户账号
+ */
+export function signInTelegramUser(phone: string, phoneCode: string, phoneCodeHash: string) {
+  return request.post<{ success: boolean; message?: string }>('/admin/telegram/user/sign-in', {
+    phone,
+    phoneCode,
+    phoneCodeHash,
+  })
+}
+
+/**
+ * 使用密码登录Telegram用户账号（两步验证）
+ */
+export function signInTelegramUserWithPassword(password: string) {
+  return request.post<{ success: boolean; message?: string }>(
+    '/admin/telegram/user/sign-in-password',
+    { password },
+  )
+}
+
+/**
+ * 获取Telegram用户账号连接状态
+ */
+export function getTelegramUserStatus() {
+  return request.get<{ connected: boolean; username?: string; message?: string }>(
+    '/admin/telegram/user/status',
+  )
+}
+
+/**
+ * 测试Telegram用户账号连接
+ */
+export function testTelegramUserConnection() {
+  return request.post<{ success: boolean; message: string }>('/admin/telegram/user/test')
+}
+
+/**
+ * 使用用户账号发送Telegram消息
+ */
+export function sendTelegramUserMessage(message: string) {
+  return request.post<{ success: boolean; message: string }>('/admin/telegram/user/send', {
+    message,
+  })
+}
+
+/**
+ * 转发消息到指定聊天
+ */
+export function forwardTelegramMessage(fromChatId: string | number, messageIds: number[]) {
+  return request.post<{ success: boolean; message: string }>('/admin/telegram/user/forward', {
+    fromChatId,
+    messageIds,
+  })
+}
+
+/**
+ * 清除Telegram用户账号Session
+ */
+export function clearTelegramUserSession() {
+  return request.post<{ success: boolean; message: string }>('/admin/telegram/user/clear-session')
+}

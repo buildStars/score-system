@@ -194,7 +194,7 @@ export class BetService {
     }
 
     // 12. 使用事务创建下注记录（不扣分）
-    return await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 创建下注记录（不扣除积分，只记录）
       // ⚠️ 使用 Prisma.Decimal 确保精确存储
       const feeDecimal = new Prisma.Decimal(fee.toFixed(2));
@@ -228,22 +228,18 @@ export class BetService {
 
       // 注意：下注时不创建 PointRecord，只在结算时创建
 
-      // 发送 Telegram 通知（异步，不阻塞返回）
-      this.telegramService.sendBetNotification(
-        {
-          issue: bet.issue,
-          betType: bet.betType,
-          betContent: bet.betContent,
-          amount: Number(bet.amount),
-        },
-        {
-          id: user.id,
-          username: user.username,
-          nickname: user.nickname,
-        },
-      ).catch(err => {
-        console.error('Telegram 通知发送失败:', err);
-      });
+      // 保存下注信息，用于事务提交后发送通知
+      const betInfo = {
+        issue: bet.issue,
+        betType: bet.betType,
+        betContent: bet.betContent,
+        amount: Number(bet.amount),
+      };
+      const userInfo = {
+        id: user.id,
+        username: user.username,
+        nickname: user.nickname,
+      };
 
       return {
         betId: bet.id,
@@ -257,8 +253,21 @@ export class BetService {
         lockedAmount: Math.floor(pendingLoss + maxPossibleLoss), // 锁定金额返回整数
         status: bet.status,
         createdAt: bet.createdAt,
+        _betInfo: betInfo, // 临时保存，用于事务后发送通知
+        _userInfo: userInfo, // 临时保存，用于事务后发送通知
       };
     });
+
+    // 不再实时上报，只在封盘后统一上报汇总
+    // 删除临时字段，避免返回给前端
+    if (result._betInfo) {
+      delete result._betInfo;
+    }
+    if (result._userInfo) {
+      delete result._userInfo;
+    }
+
+    return result;
   }
 
   /**
@@ -833,21 +842,7 @@ export class BetService {
       // 不需要创建 PointRecord
     });
 
-    // 8. 发送 Telegram 取消通知（倍数 + 组合，不含大小单双）
-    const cancelledAmount = bets.reduce((sum, bet) => sum + Number(bet.amount), 0);
-    this.telegramService.sendCancelBetNotification(
-      issue,
-      betType,
-      betContent,
-      cancelledAmount,
-      {
-        id: user.id,
-        username: user.username,
-        nickname: user.nickname,
-      },
-    ).catch(err => {
-      console.error('Telegram 取消通知发送失败:', err);
-    });
+    // 8. 取消下注不上报（已移除Telegram通知）
 
     return {
       message: '取消成功',

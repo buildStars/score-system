@@ -77,5 +77,64 @@ export class UpdateSystemSettingsDto {
   @IsOptional()
   @IsString()
   telegram_rate?: string;
+
+  @ApiProperty({ description: 'Telegram 倍数取整方式（round=四舍五入, floor=向下, ceil=向上）', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_multiple_round?: string;
+
+  @ApiProperty({ description: 'Telegram 组合取整方式（round=四舍五入, floor=向下, ceil=向上）', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_combo_round?: string;
+
+  // ==================== Telegram 用户账号配置 ====================
+
+  @ApiProperty({ description: 'Telegram 用户账号启用开关', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_user_enabled?: string;
+
+  @ApiProperty({ description: 'Telegram 用户账号 API ID', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_user_api_id?: string;
+
+  @ApiProperty({ description: 'Telegram 用户账号 API Hash', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_user_api_hash?: string;
+
+  @ApiProperty({ description: 'Telegram 用户账号手机号', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_user_phone?: string;
+
+  @ApiProperty({ description: 'Telegram 用户账号目标 Chat ID', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_user_chat_id?: string;
+
+  @ApiProperty({ description: 'Telegram 用户账号 Session（自动保存，无需手动配置）', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_user_session?: string;
+
+  // ==================== 久旺机器人配置 ====================
+
+  @ApiProperty({ description: '久旺机器人启用开关', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_jiuwang_enabled?: string;
+
+  @ApiProperty({ description: '久旺机器人 Bot Token', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_jiuwang_bot_token?: string;
+
+  @ApiProperty({ description: '久旺机器人 Chat ID', required: false })
+  @IsOptional()
+  @IsString()
+  telegram_jiuwang_chat_id?: string;
 }
 

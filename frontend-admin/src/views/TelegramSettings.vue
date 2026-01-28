@@ -1,70 +1,95 @@
 <template>
   <div class="telegram-settings">
-    <el-card shadow="hover">
+    <!-- Telegram 用户账号配置 -->
+    <el-card shadow="hover" style="margin-top: 24px">
       <template #header>
         <div class="card-header">
           <el-icon :size="24"><ChatDotRound /></el-icon>
-          <span>Telegram 机器人配置</span>
+          <span>Telegram 用户账号配置</span>
         </div>
       </template>
 
-      <!-- 配置说明 -->
-      <!-- <el-alert
+      <el-alert
         title="配置说明"
         type="info"
         :closable="false"
         show-icon
         class="config-tips"
+        style="margin-bottom: 24px"
       >
         <template #default>
           <div class="tips-content">
-            <p>1. 在 Telegram 中搜索 <b>@BotFather</b>，发送 <code>/newbot</code> 创建机器人</p>
-            <p>2. 获取 Bot Token（格式如：<code>123456789:ABCdefGHI...</code>）</p>
-            <p>3. 将机器人添加到群组，发送一条消息后获取 Chat ID</p>
-            <p>4. 获取 Chat ID 方法：访问 <code>https://api.telegram.org/bot{TOKEN}/getUpdates</code></p>
+            <p>
+              1. 访问 <a href="https://my.telegram.org/apps" target="_blank">https://my.telegram.org/apps</a>{' '}
+              创建应用获取 API ID 和 API Hash
+            </p>
+            <p>2. 填写手机号（包含国家代码，如：+8613800138000）</p>
+            <p>3. 点击"发送验证码"，输入收到的验证码完成登录</p>
+            <p>4. 如果账号开启了两步验证，还需要输入密码</p>
+            <p>5. 配置目标 Chat ID（频道或群组ID，如：@channel_name 或 -1001234567890）</p>
           </div>
         </template>
-      </el-alert> -->
+      </el-alert>
 
-      <!-- 配置表单 -->
+      <!-- 用户账号配置表单 -->
       <el-form
-        ref="formRef"
-        :model="form"
+        ref="userFormRef"
+        :model="userForm"
         label-width="140px"
         class="config-form"
       >
-        <el-form-item label="启用 Telegram">
+        <el-form-item label="启用用户账号">
           <el-switch
-            v-model="form.enabled"
+            v-model="userForm.enabled"
             active-text="开启"
             inactive-text="关闭"
           />
-          <span class="form-tip">开启后，用户下注会自动推送到 Telegram</span>
+          <span class="form-tip">开启后，将使用用户账号模式发送/转发消息</span>
         </el-form-item>
 
-        <el-form-item label="Bot Token">
+        <el-form-item label="API ID">
           <el-input
-            v-model="form.botToken"
-            placeholder="请输入 Telegram Bot Token"
+            v-model="userForm.apiId"
+            placeholder="请输入 API ID"
+            clearable
+            style="max-width: 300px"
+          />
+        </el-form-item>
+
+        <el-form-item label="API Hash">
+          <el-input
+            v-model="userForm.apiHash"
+            placeholder="请输入 API Hash"
             show-password
             clearable
             style="max-width: 500px"
           />
         </el-form-item>
 
-        <el-form-item label="Chat ID">
+        <el-form-item label="手机号">
           <el-input
-            v-model="form.chatId"
-            placeholder="请输入群组/频道的 Chat ID"
+            v-model="userForm.phone"
+            placeholder="请输入手机号（包含国家代码，如：+8613800138000）"
             clearable
             style="max-width: 300px"
           />
-          <span class="form-tip">群组 ID 通常为负数，如 <code>-1001234567890</code></span>
+        </el-form-item>
+
+        <el-form-item label="目标 Chat ID">
+          <el-input
+            v-model="userForm.chatId"
+            placeholder="用户名（@username）或ID（-1001234567890）"
+            clearable
+            style="max-width: 300px"
+          />
+          <span class="form-tip">
+            支持格式：用户名（@channel_name 或 channel_name）、频道ID（-1001234567890）、用户ID（123456789）
+          </span>
         </el-form-item>
 
         <el-form-item label="上报汇率">
           <el-input-number
-            v-model="form.rate"
+            v-model="userForm.rate"
             :min="0.01"
             :max="10000"
             :precision="2"
@@ -72,6 +97,32 @@
             style="width: 150px"
           />
           <span class="form-tip">金额除以此汇率后上报，例如汇率为10，下注1000则上报100</span>
+        </el-form-item>
+
+        <el-form-item label="倍数取整方式">
+          <el-select
+            v-model="userForm.multipleRound"
+            placeholder="请选择倍数取整方式"
+            style="width: 200px"
+          >
+            <el-option label="四舍五入" value="round" />
+            <el-option label="向上取整" value="ceil" />
+            <el-option label="向下取整" value="floor" />
+          </el-select>
+          <span class="form-tip">倍数下注金额取整方式</span>
+        </el-form-item>
+
+        <el-form-item label="组合取整方式">
+          <el-select
+            v-model="userForm.comboRound"
+            placeholder="请选择组合取整方式"
+            style="width: 200px"
+          >
+            <el-option label="四舍五入" value="round" />
+            <el-option label="向上取整" value="ceil" />
+            <el-option label="向下取整" value="floor" />
+          </el-select>
+          <span class="form-tip">组合下注（大单/大双/小单/小双）金额取整方式</span>
         </el-form-item>
 
         <el-alert
@@ -84,64 +135,73 @@
           </template>
         </el-alert>
 
+        <!-- 登录状态显示 -->
+        <el-form-item v-if="userStatus.connected" label="登录状态">
+          <el-tag type="success" size="large">
+            <el-icon><Check /></el-icon>
+            已登录：{{ userStatus.username }}
+          </el-tag>
+        </el-form-item>
+
         <el-form-item>
-          <el-button type="primary" @click="handleSave" :loading="saving">
+          <el-button type="primary" @click="handleUserSave" :loading="userSaving">
             <el-icon><Check /></el-icon>
             保存配置
           </el-button>
-          <el-button type="success" @click="handleTest" :loading="testing">
+          <el-button
+            type="success"
+            @click="handleSendUserCode"
+            :loading="sendingCode"
+            :disabled="!userForm.phone || !userForm.apiId || !userForm.apiHash"
+          >
             <el-icon><Connection /></el-icon>
+            发送验证码
+          </el-button>
+          <el-button
+            v-if="phoneCodeHash"
+            type="warning"
+            @click="handleUserSignIn"
+            :loading="signingIn"
+          >
+            登录
+          </el-button>
+          <el-button type="info" @click="handleUserTest" :loading="userTesting">
             测试连接
+          </el-button>
+          <el-button type="danger" @click="handleClearSession" :loading="clearingSession">
+            清除Session
           </el-button>
         </el-form-item>
       </el-form>
 
-      <!-- 消息测试 -->
-      <el-divider>发送测试消息</el-divider>
-
-      <div class="test-message-section">
-        <el-input
-          v-model="testMessage"
-          type="textarea"
-          :rows="3"
-          placeholder="输入要发送的测试消息..."
-          style="max-width: 500px; margin-bottom: 16px"
-        />
-        <div>
-          <el-button type="warning" @click="handleSendTest" :loading="sending" :disabled="!testMessage">
-            <el-icon><Promotion /></el-icon>
-            发送测试消息
+      <!-- 验证码输入对话框 -->
+      <el-dialog v-model="codeDialogVisible" title="输入验证码" width="400px">
+        <el-form>
+          <el-form-item label="验证码">
+            <el-input
+              v-model="phoneCode"
+              placeholder="请输入收到的验证码"
+              maxlength="6"
+              style="width: 200px"
+            />
+          </el-form-item>
+          <el-form-item v-if="needPassword" label="两步验证密码">
+            <el-input
+              v-model="password"
+              type="password"
+              placeholder="请输入两步验证密码"
+              show-password
+              style="width: 200px"
+            />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="codeDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleUserSignIn" :loading="signingIn">
+            确认登录
           </el-button>
-        </div>
-      </div>
-
-      <!-- 消息格式预览 -->
-      <el-divider>消息格式预览</el-divider>
-
-      <div class="message-preview">
-        <div class="preview-title">消息格式预览</div>
-        <div class="preview-content">
-          <pre>🎰 <b>新下注</b>
-
-📋 期号: 20250112001
-👤 用户: 张三
-💰 下注: <b>{{ previewAmount }}倍</b>
-
-📊 <b>当期汇总</b>
-├ 倍数: <b>5000.00</b>
-├ 大单: <b>1000.00</b>
-├ 大双: <b>800.00</b>
-└ 小单: <b>500.00</b>
-
-🕐 2025/1/12 14:30:00</pre>
-        </div>
-        <div class="preview-note">
-          <p>✅ 上报：倍数、大单、大双、小单、小双</p>
-          <p>❌ 不上报：大、小、单、双</p>
-          <p>📌 汇总只显示有下注的类型</p>
-          <p>💱 汇率 {{ form.rate }}：原始 1000 → 上报 {{ (1000 / form.rate).toFixed(2) }}</p>
-        </div>
-      </div>
+        </template>
+      </el-dialog>
     </el-card>
   </div>
 </template>
@@ -149,104 +209,230 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ChatDotRound, Check, Connection, Promotion } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { getSettings, updateSystemSettings, testTelegramConnection, sendTelegramMessage } from '@/api/settings'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  getSettings,
+  updateSystemSettings,
+  sendTelegramUserCode,
+  signInTelegramUser,
+  signInTelegramUserWithPassword,
+  getTelegramUserStatus,
+  testTelegramUserConnection,
+  clearTelegramUserSession,
+} from '@/api/settings'
 
-const saving = ref(false)
-const testing = ref(false)
-const sending = ref(false)
-const testMessage = ref('这是一条测试消息 🎉')
-
-// 表单数据
-const form = reactive({
+// 用户账号表单数据
+const userForm = reactive({
   enabled: false,
-  botToken: '',
+  apiId: '',
+  apiHash: '',
+  phone: '',
   chatId: '',
   rate: 1, // 上报汇率，默认为1
+  multipleRound: 'round', // 倍数取整方式：round(四舍五入)、floor(向下)、ceil(向上)
+  comboRound: 'round', // 组合取整方式：round(四舍五入)、floor(向下)、ceil(向上)
 })
 
-// 预览金额（示例1000除以汇率）
-const previewAmount = computed(() => {
-  return (1000 / form.rate).toFixed(2)
+// 用户账号状态
+const userStatus = reactive({
+  connected: false,
+  username: '',
+  message: '',
 })
+
+// 登录相关
+const phoneCodeHash = ref('')
+const phoneCode = ref('')
+const password = ref('')
+const needPassword = ref(false)
+const codeDialogVisible = ref(false)
+const sendingCode = ref(false)
+const signingIn = ref(false)
+const userSaving = ref(false)
+const userTesting = ref(false)
+const clearingSession = ref(false)
 
 // 加载配置
 const loadSettings = async () => {
   try {
     const res = await getSettings()
     const settings = res.data?.systemSettings || {}
-    // 后端返回驼峰格式
-    form.enabled = settings.telegramEnabled === true || settings.telegramEnabled === 'true'
-    form.botToken = settings.telegramBotToken || ''
-    form.chatId = settings.telegramChatId || ''
-    form.rate = parseFloat(settings.telegramRate) || 1
+    
+    // 用户账号配置
+    userForm.enabled = settings.telegramUserEnabled === true || settings.telegramUserEnabled === 'true'
+    userForm.apiId = settings.telegramUserApiId || ''
+    userForm.apiHash = settings.telegramUserApiHash || ''
+    userForm.phone = settings.telegramUserPhone || ''
+    userForm.chatId = settings.telegramUserChatId || ''
+    userForm.rate = parseFloat(settings.telegramRate) || 1
+    userForm.multipleRound = settings.telegramMultipleRound || 'round'
+    userForm.comboRound = settings.telegramComboRound || 'round'
+
+    // 加载用户状态
+    if (userForm.enabled) {
+      await loadUserStatus()
+    }
   } catch (error) {
     console.error('加载配置失败:', error)
   }
 }
 
-// 保存配置
-const handleSave = async () => {
+// 加载用户账号状态
+const loadUserStatus = async () => {
   try {
-    saving.value = true
+    const res = await getTelegramUserStatus()
+    if (res.data) {
+      userStatus.connected = res.data.connected
+      userStatus.username = res.data.username || ''
+      userStatus.message = res.data.message || ''
+    }
+  } catch (error) {
+    console.error('加载用户状态失败:', error)
+  }
+}
+
+// 保存用户账号配置
+const handleUserSave = async () => {
+  try {
+    userSaving.value = true
     await updateSystemSettings({
-      telegram_enabled: form.enabled ? 'true' : 'false',
-      telegram_bot_token: form.botToken,
-      telegram_chat_id: form.chatId,
-      telegram_rate: String(form.rate),
+      telegram_user_enabled: userForm.enabled ? 'true' : 'false',
+      telegram_user_api_id: userForm.apiId,
+      telegram_user_api_hash: userForm.apiHash,
+      telegram_user_phone: userForm.phone,
+      telegram_user_chat_id: userForm.chatId,
+      telegram_rate: String(userForm.rate),
+      telegram_multiple_round: userForm.multipleRound,
+      telegram_combo_round: userForm.comboRound,
     } as any)
     ElMessage.success('配置保存成功')
   } catch (error) {
     ElMessage.error('保存失败')
   } finally {
-    saving.value = false
+    userSaving.value = false
   }
 }
 
-// 测试连接
-const handleTest = async () => {
-  if (!form.botToken || !form.chatId) {
-    ElMessage.warning('请先填写 Bot Token 和 Chat ID')
+// 发送验证码
+const handleSendUserCode = async () => {
+  if (!userForm.phone || !userForm.apiId || !userForm.apiHash) {
+    ElMessage.warning('请先填写手机号、API ID 和 API Hash')
     return
   }
 
   // 先保存配置
-  await handleSave()
+  await handleUserSave()
 
   try {
-    testing.value = true
-    const res = await testTelegramConnection()
+    sendingCode.value = true
+    const res = await sendTelegramUserCode(userForm.phone)
+    if (res.data?.success && res.data.phoneCodeHash) {
+      phoneCodeHash.value = res.data.phoneCodeHash
+      codeDialogVisible.value = true
+      needPassword.value = false
+      phoneCode.value = ''
+      password.value = ''
+      ElMessage.success('验证码已发送，请查收')
+    } else {
+      ElMessage.error(res.data?.message || '发送验证码失败')
+    }
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '发送验证码失败')
+  } finally {
+    sendingCode.value = false
+  }
+}
+
+// 用户登录
+const handleUserSignIn = async () => {
+  if (!phoneCode.value) {
+    ElMessage.warning('请输入验证码')
+    return
+  }
+
+  try {
+    signingIn.value = true
+
+    // 如果不需要密码，直接使用验证码登录
+    if (!needPassword.value) {
+      const res = await signInTelegramUser(
+        userForm.phone,
+        phoneCode.value,
+        phoneCodeHash.value,
+      )
+
+      if (res.data?.success) {
+        ElMessage.success('登录成功')
+        codeDialogVisible.value = false
+        await loadUserStatus()
+      } else {
+        // 如果需要两步验证
+        if (res.data?.message?.includes('密码')) {
+          needPassword.value = true
+          ElMessage.warning('需要两步验证密码')
+        } else {
+          ElMessage.error(res.data?.message || '登录失败')
+        }
+      }
+    } else {
+      // 使用密码登录
+      if (!password.value) {
+        ElMessage.warning('请输入两步验证密码')
+        return
+      }
+
+      const res = await signInTelegramUserWithPassword(password.value)
+      if (res.data?.success) {
+        ElMessage.success('登录成功')
+        codeDialogVisible.value = false
+        await loadUserStatus()
+      } else {
+        ElMessage.error(res.data?.message || '登录失败')
+      }
+    }
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '登录失败')
+  } finally {
+    signingIn.value = false
+  }
+}
+
+// 测试用户账号连接
+const handleUserTest = async () => {
+  try {
+    userTesting.value = true
+    const res = await testTelegramUserConnection()
     if (res.data?.success) {
       ElMessage.success(res.data.message || '连接测试成功')
+      await loadUserStatus()
     } else {
       ElMessage.error(res.data?.message || '连接测试失败')
     }
   } catch (error: any) {
     ElMessage.error(error.response?.data?.message || '测试失败')
   } finally {
-    testing.value = false
+    userTesting.value = false
   }
 }
 
-// 发送测试消息
-const handleSendTest = async () => {
-  if (!testMessage.value) {
-    ElMessage.warning('请输入测试消息')
-    return
-  }
-
+// 清除Session
+const handleClearSession = async () => {
   try {
-    sending.value = true
-    const res = await sendTelegramMessage(testMessage.value)
-    if (res.data?.success) {
-      ElMessage.success('消息发送成功')
-    } else {
-      ElMessage.error(res.data?.message || '发送失败')
-    }
+    await ElMessageBox.confirm('确定要清除Session吗？清除后需要重新登录。', '确认操作', {
+      type: 'warning',
+    })
+
+    clearingSession.value = true
+    await clearTelegramUserSession()
+    ElMessage.success('Session已清除')
+    userStatus.connected = false
+    userStatus.username = ''
   } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || '发送失败')
+    if (error !== 'cancel') {
+      ElMessage.error(error.response?.data?.message || '清除失败')
+    }
   } finally {
-    sending.value = false
+    clearingSession.value = false
   }
 }
 

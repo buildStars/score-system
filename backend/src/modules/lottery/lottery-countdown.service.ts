@@ -1,401 +1,263 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression, Interval } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
-import axios from 'axios';
-import * as https from 'https';
-import * as dayjs from 'dayjs';
+import { TelegramService } from '../telegram/telegram.service';
 import { LotteryStatusDto } from './dto/lottery-status.dto';
+import * as dayjs from 'dayjs';
 
+/**
+ * 彩票倒计时服务
+ * 负责计算倒计时、封盘状态、发送封盘通知等
+ */
 @Injectable()
 export class LotteryCountdownService {
   private readonly logger = new Logger(LotteryCountdownService.name);
-
-  // 默认配置（当数据库读取失败时使用）
-  private DRAW_INTERVAL = 210; // 开奖间隔：3.5分钟 = 210秒
-  private CLOSE_BEFORE_DRAW = 30; // 封盘时间：开奖前30秒（0表示不封盘）
-  private WARNING_TIME = 60; // 即将封盘预警时间：封盘前60秒
-  private get OPEN_TIME() {
-    return this.DRAW_INTERVAL - this.CLOSE_BEFORE_DRAW; // 开盘时间
-  }
-
-  // 缓存最新开奖数据
-  private currentPeriod: string = '';
-  private lastDrawTime: Date | null = null;
-  private isInitialized = false;
-
-  constructor(private prisma: PrismaService) {
-    // 启动时立即初始化
-    this.initialize();
-  }
-
-  /**
-   * 初始化：加载配置并获取最新开奖数据
-   */
-  async initialize() {
-    if (this.isInitialized) return;
-
-    try {
-      this.logger.log('初始化封盘倒计时服务...');
-      
-      // 加载配置
-      await this.loadSettings();
-      
-      // 获取最新开奖数据（失败也不影响初始化）
-      await this.fetchLatestDraw();
-      
-      this.logger.log(
-        `封盘倒计时服务初始化成功 - 开奖间隔:${this.DRAW_INTERVAL}秒, 封盘时间:${this.CLOSE_BEFORE_DRAW}秒, 当前期号:${this.currentPeriod || '未知'}`
-      );
-    } catch (error) {
-      this.logger.error('初始化遇到问题:', error.message);
-    } finally {
-      // 无论成功失败都标记为已初始化，避免反复尝试
-      this.isInitialized = true;
-    }
+  
+  // 配置缓存
+  private DRAW_INTERVAL: number = 210; // 开奖间隔（秒），默认210秒
+  private CLOSE_BEFORE_DRAW: number = 5; // 封盘时间（秒），默认5秒
+  
+  // 状态缓存
+  private currentPeriod: string = ''; // 当前已开奖的期号
+  private lastCloseStatus: boolean = false; // 上次封盘状态
+  
+  constructor(
+    private prisma: PrismaService,
+    private telegramService: TelegramService,
+  ) {
+    // 启动时加载配置
+    this.loadConfig();
   }
 
   /**
    * 从数据库加载配置
    */
-  private async loadSettings() {
+  private async loadConfig() {
     try {
-      // 读取开奖间隔时间
-      const drawInterval = await this.prisma.systemSetting.findUnique({
+      const drawIntervalSetting = await this.prisma.systemSetting.findUnique({
         where: { settingKey: 'draw_interval' },
       });
-      if (drawInterval) {
-        this.DRAW_INTERVAL = parseInt(drawInterval.settingValue) || 210;
-      }
-
-      // 读取封盘时间（0表示不封盘）
-      const closeBeforeDraw = await this.prisma.systemSetting.findUnique({
+      const closeBeforeDrawSetting = await this.prisma.systemSetting.findUnique({
         where: { settingKey: 'close_before_draw' },
       });
-      if (closeBeforeDraw) {
-        this.CLOSE_BEFORE_DRAW = parseInt(closeBeforeDraw.settingValue);
-        // 允许为0，不设置默认值
-      }
 
-      this.logger.log(
-        `配置加载成功: 开奖间隔=${this.DRAW_INTERVAL}秒, 封盘时间=${this.CLOSE_BEFORE_DRAW}秒${this.CLOSE_BEFORE_DRAW === 0 ? '（不封盘）' : ''}`
-      );
+      this.DRAW_INTERVAL = drawIntervalSetting 
+        ? parseInt(drawIntervalSetting.settingValue) || 210 
+        : 210;
+      this.CLOSE_BEFORE_DRAW = closeBeforeDrawSetting 
+        ? parseInt(closeBeforeDrawSetting.settingValue) || 5 
+        : 5;
+
+      this.logger.log(`配置加载成功: 开奖间隔=${this.DRAW_INTERVAL}秒, 封盘时间=${this.CLOSE_BEFORE_DRAW}秒`);
     } catch (error) {
-      this.logger.error('加载配置失败，使用默认值:', error.message);
+      this.logger.error('加载配置失败，使用默认值', error);
     }
   }
 
   /**
-   * 刷新配置（管理员修改设置后调用）
+   * 定时重新加载配置（每5分钟）
    */
-  async refreshSettings() {
-    await this.loadSettings();
-    this.logger.log('配置已刷新');
+  @Cron('*/5 * * * *', {
+    name: 'reload-config',
+  })
+  async reloadConfig() {
+    await this.loadConfig();
+    this.logger.debug('定时重新加载配置成功');
   }
 
   /**
-   * 从数据库同步最新数据（优先使用，不调用第三方API）
-   */
-  private async syncFromDatabase() {
-    try {
-      const latest = await this.prisma.lotteryResult.findFirst({
-        orderBy: { drawTime: 'desc' },
-        select: {
-          issue: true,
-          drawTime: true,
-        },
-      });
-
-      if (latest) {
-        // 如果数据库的期号更新了，更新缓存
-        if (latest.issue !== this.currentPeriod) {
-          this.logger.debug(`📊 从数据库更新期号: ${this.currentPeriod} → ${latest.issue}`);
-          this.currentPeriod = latest.issue;
-          this.lastDrawTime = latest.drawTime;
-        }
-      }
-    } catch (error) {
-      this.logger.error('从数据库同步数据失败:', error.message);
-    }
-  }
-
-  /**
-   * 定时任务：每个开奖周期同步一次
-   * 统一使用定时任务，不通过倒计时触发
-   * 使用动态间隔，与开奖间隔保持一致
-   */
-  @Interval('syncLatestDraw', 210000) // 210秒 = 210000毫秒
-  async syncLatestDraw() {
-    try {
-      await this.fetchLatestDraw();
-      this.logger.log('定时同步最新开奖数据成功');
-    } catch (error) {
-      this.logger.error('定时同步失败:', error.message);
-    }
-  }
-  
-  /**
-   * 定时任务：每10秒检查是否到达开奖时刻
-   * 只在开奖后进行密集同步，确保及时获取新期号
-   */
-
-
-  /**
-   * 定时任务：每5分钟重新加载配置（以防管理员修改了设置）
-   * 配置包括：开奖间隔时间、封盘时间
-   */
-  @Cron('*/5 * * * *')
-  async reloadSettings() {
-    try {
-      await this.loadSettings();
-      this.logger.debug('定时重新加载配置成功');
-    } catch (error) {
-      this.logger.error('定时重新加载配置失败:', error.message);
-    }
-  }
-
-  /**
-   * 从 USA28 API 获取最新开奖数据
-   * @param pageSize 获取的记录数，默认2条（只需要最新的）
-   */
-  private async fetchLatestDraw(pageSize: number = 2) {
-    try {
-      const httpsAgent = new https.Agent({
-        rejectUnauthorized: false,
-      });
-
-      const response = await axios.get(
-        'https://api.365kaik.com/api/v1/trend/getHistoryList',
-        {
-          params: {
-            lotCode: '10029',
-            pageSize: pageSize.toString(),
-            pageNum: '0',
-            t: Date.now().toString(),
-          },
-          timeout: 10000, // 降低超时时间到10秒
-          httpsAgent,
-        },
-      );
-
-      if (
-        response.data?.code === 0 &&
-        response.data?.data?.list?.[0]
-      ) {
-        const latest = response.data.data.list[0];
-        const newPeriod = latest.drawIssue;
-        const newDrawTime = new Date(latest.drawTime);
-
-        // 只在期号变化时更新
-        if (newPeriod !== this.currentPeriod) {
-          const oldPeriod = this.currentPeriod;
-          this.currentPeriod = newPeriod;
-          this.lastDrawTime = newDrawTime;
-          
-          this.logger.log(`✓ 更新最新开奖数据: 期号 ${oldPeriod} → ${newPeriod}, 时间=${latest.drawTime}`);
-        }
-      }
-    } catch (error) {
-      this.logger.warn('API获取失败，尝试从数据库获取:', error.message);
-      
-      // 降级方案：从数据库获取最新开奖数据
-      try {
-        await this.fetchFromDatabase();
-      } catch (dbError) {
-        this.logger.error('从数据库获取数据也失败:', dbError.message);
-        // 不抛出错误，让服务继续运行
-      }
-    }
-  }
-
-  /**
-   * 从数据库获取最新开奖数据（降级方案）
-   */
-  private async fetchFromDatabase() {
-    const latestResult = await this.prisma.lotteryResult.findFirst({
-      orderBy: { drawTime: 'desc' },
-      select: {
-        issue: true,
-        drawTime: true,
-      },
-    });
-
-    if (latestResult) {
-      const newPeriod = latestResult.issue;
-      const newDrawTime = latestResult.drawTime;
-
-      if (newPeriod !== this.currentPeriod) {
-        const oldPeriod = this.currentPeriod || '(无)';
-        this.currentPeriod = newPeriod;
-        this.lastDrawTime = newDrawTime;
-        
-        this.logger.log(`✓ 从数据库获取最新数据: 期号 ${oldPeriod} → ${newPeriod}`);
-      }
-    } else {
-      this.logger.warn('数据库中没有开奖数据，使用默认值');
-      // 使用默认值，让服务至少能运行
-      if (!this.currentPeriod) {
-        this.currentPeriod = '3330421';
-        this.lastDrawTime = new Date();
-        this.logger.log('使用默认期号: 3330421');
-      }
-    }
-  }
-
-  /**
-   * 获取当前彩票状态
+   * 获取彩票状态
    */
   async getLotteryStatus(): Promise<LotteryStatusDto> {
-    // 确保已初始化
-    if (!this.isInitialized || !this.lastDrawTime) {
-      await this.initialize();
-    }
+    try {
+      // 获取最新一期开奖结果
+      const lastResult = await this.prisma.lotteryResult.findFirst({
+        orderBy: { drawTime: 'desc' },
+      });
 
-    // 🔑 关键优化：从数据库读取最新数据，确保与同步服务数据一致
-    await this.syncFromDatabase();
+      const now = new Date();
+      let currentPeriod: string;
+      let nextPeriod: string;
+      let currentDrawTime: Date;
+      let currentCloseTime: Date;
 
-    const now = new Date();
-    const serverTime = dayjs(now).format('YYYY-MM-DD HH:mm:ss');
+      if (lastResult) {
+        // 有开奖记录，计算下一期
+        currentPeriod = lastResult.issue;
+        nextPeriod = (parseInt(currentPeriod) + 1).toString();
+        
+        // 计算下一期的开奖时间（基于上次开奖时间 + 间隔）
+        const lastDrawTime = dayjs(lastResult.drawTime);
+        currentDrawTime = lastDrawTime.add(this.DRAW_INTERVAL, 'second').toDate();
+        
+        // 计算封盘时间（开奖时间 - 封盘时间）
+        currentCloseTime = dayjs(currentDrawTime).subtract(this.CLOSE_BEFORE_DRAW, 'second').toDate();
+      } else {
+        // 没有开奖记录，使用默认值
+        currentPeriod = '3389187';
+        nextPeriod = '3389188';
+        currentDrawTime = dayjs().add(this.DRAW_INTERVAL, 'second').toDate();
+        currentCloseTime = dayjs(currentDrawTime).subtract(this.CLOSE_BEFORE_DRAW, 'second').toDate();
+      }
 
-    // 如果没有最新数据，返回加载中状态
-    if (!this.lastDrawTime || !this.currentPeriod) {
+      // 更新当前期号缓存
+      if (this.currentPeriod !== currentPeriod) {
+        this.logger.debug(`📊 从数据库更新期号: ${this.currentPeriod} → ${currentPeriod}`);
+        this.currentPeriod = currentPeriod;
+      }
+
+      // 计算倒计时
+      const nowDayjs = dayjs(now);
+      const closeDate = dayjs(currentCloseTime);
+      const drawDate = dayjs(currentDrawTime);
+
+      // 先计算原始值（可能为负数），用于封盘判断
+      const rawSecondsToClose = closeDate.diff(nowDayjs, 'second');
+      const rawSecondsToDraw = drawDate.diff(nowDayjs, 'second');
+      
+      // 用于显示的倒计时（限制为0或正数）
+      const secondsToClose = Math.max(0, rawSecondsToClose);
+      const secondsToDraw = Math.max(0, rawSecondsToDraw);
+
+      // 修正封盘判断：只要距封盘时间<=0就算封盘（如果配置了封盘时间）
+      // 但如果封盘时间配置为0，则不封盘
+      // 使用原始值判断，而不是被Math.max限制后的值
+      const isClosed = rawSecondsToClose <= 0 && this.CLOSE_BEFORE_DRAW > 0;
+      
+      // 调试日志：记录封盘状态检测
+      this.logger.debug(`封盘状态检测 - 已开奖期号: ${this.currentPeriod}, 当前下注期号: ${nextPeriod}, 距封盘: ${rawSecondsToClose}秒(显示:${secondsToClose}秒), 距开奖: ${rawSecondsToDraw}秒(显示:${secondsToDraw}秒), 是否封盘: ${isClosed}, 上次状态: ${this.lastCloseStatus}, 封盘配置: ${this.CLOSE_BEFORE_DRAW}秒`);
+
+      // 确定状态
+      let status: 'open' | 'closing' | 'closed';
+      if (isClosed) {
+        status = 'closed';
+      } else if (secondsToClose <= 10 && secondsToClose > 0) {
+        status = 'closing'; // 即将封盘（10秒内）
+      } else {
+        status = 'open';
+      }
+
+      // 计算倒计时（秒）
+      const countdown = isClosed ? secondsToDraw : secondsToClose;
+
       return {
-        currentPeriod: '加载中...',
-        nextPeriod: '计算中...',
-        currentCloseTime: serverTime,
-        currentDrawTime: serverTime,
-        serverTime,
-        status: 'closed',
-        canBet: false,
-        countdown: 0,
-        countdownText: '正在加载开奖数据...',
-        progressPercentage: 0,
+        currentPeriod: nextPeriod, // 当前下注期号
+        nextPeriod: (parseInt(nextPeriod) + 1).toString(), // 下下期期号
+        currentCloseTime: currentCloseTime.toISOString().replace('T', ' ').substring(0, 19),
+        currentDrawTime: currentDrawTime.toISOString().replace('T', ' ').substring(0, 19),
+        serverTime: now.toISOString().replace('T', ' ').substring(0, 19),
+        status,
+        canBet: !isClosed,
+        countdown: Math.max(0, countdown),
+        countdownText: isClosed ? `距离开奖还有 ${Math.floor(countdown / 60)}分${countdown % 60}秒` : `距离封盘还有 ${Math.floor(countdown / 60)}分${countdown % 60}秒`,
+        progressPercentage: isClosed 
+          ? Math.min(100, Math.max(0, (this.CLOSE_BEFORE_DRAW - secondsToDraw) / this.CLOSE_BEFORE_DRAW * 100))
+          : Math.min(100, Math.max(0, (this.DRAW_INTERVAL - secondsToClose) / this.DRAW_INTERVAL * 100)),
       };
+    } catch (error) {
+      this.logger.error('获取彩票状态失败', error);
+      throw error;
     }
-
-    // 计算当前期的开奖时间
-    const currentDrawDate = dayjs(this.lastDrawTime).add(this.DRAW_INTERVAL, 'second');
-    let diffSeconds = currentDrawDate.diff(dayjs(now), 'second');
-
-    // 如果倒计时为负数，使用估算值（不再触发刷新，由定时任务负责）
-    if (diffSeconds <= 0) {
-      // 估算：基于开奖间隔计算合理的倒计时
-      diffSeconds = this.DRAW_INTERVAL - (Math.abs(diffSeconds) % this.DRAW_INTERVAL);
-      this.logger.debug(`倒计时为负，使用估算值: ${diffSeconds}秒（等待定时任务同步）`);
-    }
-
-    // 计算当前期封盘时间 = 开奖时间 - 封盘时长
-    const currentCloseDate = currentDrawDate.subtract(this.CLOSE_BEFORE_DRAW, 'second');
-    
-    // 格式化时间字符串
-    const currentCloseTime = currentCloseDate.format('YYYY-MM-DD HH:mm:ss');
-    const currentDrawTime = currentDrawDate.format('YYYY-MM-DD HH:mm:ss');
-    
-    // 计算下期期号
-    const nextPeriod = (parseInt(this.currentPeriod) + 1).toString();
-
-    // 判断当前状态（只有开盘和封盘两种状态）
-    let status: 'open' | 'closed';
-    let canBet: boolean;
-    let countdown: number;
-    let countdownText: string;
-    let progressPercentage: number;
-
-    const secondsToClose = currentCloseDate.diff(dayjs(now), 'second');
-    const secondsToDraw = currentDrawDate.diff(dayjs(now), 'second');
-
-    if (secondsToClose > 0) {
-      // 开盘状态：封盘时间还没到
-      status = 'open';
-      canBet = true;
-      countdown = secondsToClose;
-      
-      const minutes = Math.floor(countdown / 60);
-      const seconds = countdown % 60;
-      
-      if (this.CLOSE_BEFORE_DRAW === 0) {
-        // 封盘时间为0，显示距离开奖的时间
-        countdownText = `距离开奖还有 ${minutes} 分 ${seconds} 秒`;
-      } else {
-        // 显示距离封盘的时间
-        countdownText = `距离封盘还有 ${minutes} 分 ${seconds} 秒`;
-      }
-      
-      // 进度 = 已过时间 / 总开盘时间
-      const totalOpenTime = this.DRAW_INTERVAL - this.CLOSE_BEFORE_DRAW;
-      const elapsedTime = totalOpenTime - secondsToClose;
-      progressPercentage = totalOpenTime > 0 ? (elapsedTime / totalOpenTime) * 100 : 0;
-      
-    } else if (secondsToDraw > 0) {
-      // 封盘状态：封盘时间已到，但开奖时间还没到
-      status = 'closed';
-      canBet = this.CLOSE_BEFORE_DRAW === 0; // 如果封盘时间为0，仍然可以下注
-      countdown = secondsToDraw;
-      
-      const minutes = Math.floor(countdown / 60);
-      const seconds = countdown % 60;
-      countdownText = `距离开奖还有 ${minutes} 分 ${seconds} 秒`;
-      
-      // 进度 = 已封盘时间 / 总封盘时间
-      if (this.CLOSE_BEFORE_DRAW > 0) {
-        const elapsedCloseTime = this.CLOSE_BEFORE_DRAW - secondsToDraw;
-        progressPercentage = (elapsedCloseTime / this.CLOSE_BEFORE_DRAW) * 100;
-      } else {
-        progressPercentage = 100;
-      }
-      
-    } else {
-      // 开奖时间已过，等待刷新新数据
-      status = 'closed';
-      canBet = false;
-      countdown = 0;
-      countdownText = '等待开奖中...';
-      progressPercentage = 100;
-    }
-
-    return {
-      currentPeriod: this.currentPeriod,
-      nextPeriod,
-      currentCloseTime,
-      currentDrawTime,
-      serverTime,
-      status,
-      canBet,
-      countdown,
-      countdownText,
-      progressPercentage: Math.min(100, Math.max(0, progressPercentage)),
-    };
   }
 
   /**
    * 检查是否可以下注
+   * @returns 返回是否可以下注及原因
    */
   async canPlaceBet(): Promise<{ canBet: boolean; reason?: string }> {
     const status = await this.getLotteryStatus();
-
     if (!status.canBet) {
       return {
         canBet: false,
-        reason: status.status === 'closed' 
-          ? `第 ${status.currentPeriod} 期已封盘，请等待开奖`
-          : '系统正在加载中，请稍后',
+        reason: status.status === 'closed' ? '已封盘，无法下注' : '当前不可下注',
       };
     }
-
     return { canBet: true };
   }
 
   /**
-   * 获取当前期号
+   * 刷新状态（手动触发）
    */
-  getCurrentPeriod(): string {
-    return this.currentPeriod || '';
+  async refresh() {
+    await this.loadConfig();
+    this.logger.log('状态已刷新');
   }
 
   /**
-   * 手动刷新最新数据
+   * 定时检查封盘状态（每10秒）
+   * 检测封盘状态变化，触发封盘汇总通知
    */
-  async refresh() {
-    await this.fetchLatestDraw();
+  @Cron('*/10 * * * * *', {
+    name: 'check-close-status',
+  })
+  async checkCloseStatus() {
+    try {
+      const status = await this.getLotteryStatus();
+      const currentBettingPeriod = status.currentPeriod; // 当前下注期号
+      const currentDrawTime = status.currentDrawTime;
+      const isClosed = status.status === 'closed';
+
+      this.logger.debug(`[定时任务] 检查封盘状态 - 当前期号: ${this.currentPeriod}, 上次封盘状态: ${this.lastCloseStatus}`);
+
+      // 检测封盘状态变化：从开盘变为封盘时，发送通知到久旺机器人和Telegram汇总
+      if (isClosed && !this.lastCloseStatus) {
+        // 封盘状态变化：从开盘变为封盘
+        this.logger.log(`🔔 检测到封盘状态变化 - 已开奖期号: ${this.currentPeriod}, 当前下注期号: ${currentBettingPeriod}, 封盘时间: ${this.CLOSE_BEFORE_DRAW}秒`);
+        
+        try {
+          if (this.CLOSE_BEFORE_DRAW > 0) {
+            // 有封盘时间配置，发送封盘通知和汇总
+            this.logger.log(`📤 开始发送封盘汇总通知 - 期号: ${currentBettingPeriod}`);
+            await this.sendCloseNotification(currentBettingPeriod, currentDrawTime);
+          } else {
+            // 没有封盘时间配置（CLOSE_BEFORE_DRAW = 0），仍然发送汇总（因为开奖前也算封盘）
+            this.logger.log(`📤 封盘时间为0，仅发送汇总通知 - 期号: ${currentBettingPeriod}`);
+            const result = await this.telegramService.sendCloseSummaryNotification(currentBettingPeriod).catch(err => {
+              this.logger.error(`❌ 封盘汇总通知发送失败 - 期号: ${currentBettingPeriod}`, err);
+              return false;
+            });
+            
+            if (result) {
+              this.logger.log(`✅ 封盘汇总通知发送成功 - 期号: ${currentBettingPeriod}`);
+            } else {
+              this.logger.warn(`⚠️ 封盘汇总通知发送失败（返回false）- 期号: ${currentBettingPeriod}`);
+            }
+          }
+        } catch (error) {
+          this.logger.error(`❌ 封盘通知处理异常 - 期号: ${currentBettingPeriod}`, error);
+        }
+      }
+      
+      this.lastCloseStatus = isClosed;
+    } catch (error) {
+      this.logger.error('检查封盘状态失败', error);
+    }
+  }
+
+  /**
+   * 发送封盘通知
+   * @param issue 期号
+   * @param drawTime 开奖时间
+   */
+  private async sendCloseNotification(issue: string, drawTime: string) {
+    try {
+      this.logger.log(`📤 发送封盘通知 - 期号: ${issue}, 开奖时间: ${drawTime}`);
+      
+      // 发送Telegram汇总通知
+      const result = await this.telegramService.sendCloseSummaryNotification(issue).catch(err => {
+        this.logger.error(`❌ Telegram封盘汇总通知发送失败 - 期号: ${issue}`, err);
+        return false;
+      });
+      
+      if (result) {
+        this.logger.log(`✅ 封盘汇总通知发送成功 - 期号: ${issue}`);
+      } else {
+        this.logger.warn(`⚠️ 封盘汇总通知发送失败（返回false）- 期号: ${issue}`);
+      }
+    } catch (error) {
+      this.logger.error(`❌ 发送封盘通知异常 - 期号: ${issue}`, error);
+    }
   }
 }
+
 

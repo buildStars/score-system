@@ -66,7 +66,7 @@ const routes: RouteRecordRaw[] = [
         path: 'telegram-settings',
         name: 'TelegramSettings',
         component: () => import('@/views/TelegramSettings.vue'),
-        meta: { title: 'Telegram配置', icon: 'ChatDotRound', hidden: true },
+        meta: { title: 'Telegram配置', icon: 'ChatDotRound' },
       },
       {
         path: 'messages',
